@@ -1,72 +1,37 @@
+# Upload only what builds and runs the app. Everything else - tests, docs, notes,
+# dev-tool configs, git hooks, GitHub settings and local builds - stays on this
+# machine and is never pushed. To upload a new top-level file or folder, add a
+# "!/name" line to the allow-list below.
+
+# 1. Ignore everything at the top level...
+/*
+
+# 2. ...except these.
+!/.gitignore
+!/.gitattributes
+!/index.html
+!/package.json
+!/package-lock.json
+!/vite.config.js
+!/server.mjs
+!/src/
+!/public/
+!/scripts/
+!/portable/
+!/Resources/
+
+# 3. Never upload these, even inside the folders above.
+*.md
+!/portable/README.md
+*.test.*
 node_modules/
-.DS_Store
 *.log
-
-.idea/
-*.msi
-*.exe
-desktop.ini
-.env
-
-release/
-*.zip
-*.sha256
-*.obj
-
-# Code-analysis tool output (graphify) — generated, not part of the app or build
-graphify-out/
-
-# Scratch test receipts / sample exports — not required for code or output
-receipt-session-*.pdf
-
-# Editor / OS cruft
-.vscode/
-Thumbs.db
 *.tmp
 *.bak
-
-# ---------------------------------------------------------------------------
-# Maintenance / working files — kept on disk, out of the repo.
-# The repo tracks what the program needs to build, test and run; everything
-# below is authoring context, history or generated reporting.
-# ---------------------------------------------------------------------------
-
-# Agent / editor working context
-.claude/
-AGENTS.md
-BOARD.md
-
-# Change history and setup notes (superseded by README.md)
-release_notes.md
-README_LOCAL_SETUP.txt
-
-# Point-in-time security write-ups
-security-assessment-*.md
-security-release-log-*.md
-docs/security/
-
-# Authoring docs, design mockups and checklist prose
-docs/*.md
-docs/mockups/
-docs/checklists/*.md
-
-# Generated reporting output
-docs/checklists/coverage-report.json
-
-# Windows / OneDrive cruft
-$RECYCLE.BIN/
-ehthumbs.db
-~$*
 *.orig
-
-# Authoring docs stay local; tests are tracked so any clone can verify the app
-docs/
-
-# CI pipeline config - none yet for the GitLab transfer (kept locally for reference)
-.github/
-.gitlab-ci.yml
-
-# Dev-only material that stays on the dev machine (lint/format configs and tests are tracked)
-wrapper/
-build-dev-only.bat
-build-portable-release.bat
+~$*
+.env
+.DS_Store
+Thumbs.db
+desktop.ini
+ehthumbs.db
