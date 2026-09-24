@@ -750,7 +750,7 @@ function App() {
                       <code>{h.articleNumber}</code>
                       <CopyButton
                         value={allBarcodesCopyText(activeAudit)}
-                        label="Copy every decoded barcode value, one per line"
+                        label="Copy every decoded barcode value, with FNC1 separators written as <GS>"
                         text="Copy all label data"
                       />
                       <button

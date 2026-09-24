@@ -61,7 +61,7 @@ export function ReaderReportView({ result, index = 0, onNewAudit, processing = f
           </code>
           <CopyButton
             value={readerCopyAllText(result)}
-            label="Copy every decoded raw value, one per line"
+            label="Copy every decoded raw value, one per line, with FNC1 separators written as <GS>"
             text="Copy all raw values"
           />
         </div>

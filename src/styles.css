@@ -995,7 +995,10 @@ figcaption {
   /* break-spaces (not pre-wrap): preserved space runs in fixed-width payloads wrap like
    * characters instead of hanging their coloured background past the box edge. */
   white-space: break-spaces;
-  word-break: break-all;
+  /* Lines break at the <wbr> after each field; a field is split only when it alone is
+   * wider than the line. */
+  word-break: normal;
+  overflow-wrap: anywhere;
   color: #1f2937;
 }
 .segmented-code .seg {

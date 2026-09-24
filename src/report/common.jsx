@@ -8,7 +8,7 @@ import { isStarTrackAtlValue, isStarTrackFreightItemValue, isStarTrackRoutingVal
 import { ARTICLE_FIELD_SPECS, fieldMetaText, fieldSpecsFor } from './barcodeFieldSpecs.js';
 import { standardForValidation } from './standards.js';
 import { barcodeDisplayName } from './auditInfo.js';
-import { leadingFnc1Info, rawContentOf, rawDisplaySegments } from './readerData.js';
+import { leadingFnc1Info, rawContentOf, rawCopyText, rawDisplaySegments } from './readerData.js';
 import { barcodeSegments } from './segments.js';
 
 export function formatBytes(bytes) {
@@ -603,15 +603,15 @@ export function RawCode({ barcode, className = '' }) {
   );
 }
 
-/** Copy actions for one barcode: its raw captured value (control characters included), plus
- *  the decoder's readable text when that differs. */
+/** Copy actions for one barcode: its raw captured value with each FNC1 separator written as
+ *  <GS>, plus the decoder's readable text when that differs. */
 export function RawCopyButtons({ barcode }) {
-  const { raw } = rawContentOf(barcode);
+  const copy = rawCopyText(rawContentOf(barcode).raw);
   const readable = String(barcode?.rawValue || '');
   return (
     <>
-      <CopyButton value={raw} label="Copy raw value (control characters included)" text="Copy raw" />
-      {readable && readable !== raw ? (
+      <CopyButton value={copy} label="Copy raw value (FNC1 separators written as <GS>)" text="Copy raw" />
+      {readable && readable !== copy ? (
         <CopyButton value={readable} label="Copy readable value" text="Copy readable" />
       ) : null}
     </>
@@ -631,26 +631,26 @@ export function SegmentedCode({
 }) {
   const segs = (segments || []).filter(s => s && ((s.text != null && String(s.text).length > 0) || s.display));
   if (!segs.length) return null;
-  const fullValue = segs.map(s => String(s.text)).join('');
-  const showReadable = Boolean(readableValue) && readableValue !== fullValue;
+  const copyValue = rawCopyText(segs.map(s => String(s.text)).join(''));
+  const showReadable = Boolean(readableValue) && readableValue !== copyValue;
   return (
     <div className={title ? 'decoded-panel segmented-panel' : 'segmented-inline'}>
       {title ? <h3>{title}</h3> : null}
       <div className="segmented-code-row">
         <code className="segmented-code">
+          {/* A break point after each field, so a wrapped line never splits one mid-value. */}
           {segs.map((s, i) => (
-            <span
-              key={i}
-              className={s.display ? 'seg seg-sep' : `seg seg-c${i % SEG_PALETTE}`}
-              title={s.title ?? s.label}
-            >
-              {s.display ?? String(s.text)}
-            </span>
+            <React.Fragment key={i}>
+              <span className={s.display ? 'seg seg-sep' : `seg seg-c${i % SEG_PALETTE}`} title={s.title ?? s.label}>
+                {s.display ?? String(s.text)}
+              </span>
+              <wbr />
+            </React.Fragment>
           ))}
         </code>
         <CopyButton
-          value={fullValue}
-          label="Copy raw value (control characters included)"
+          value={copyValue}
+          label="Copy raw value (FNC1 separators written as <GS>)"
           text={showReadable ? 'Copy raw' : undefined}
         />
         {showReadable ? <CopyButton value={readableValue} label="Copy readable value" text="Copy readable" /> : null}

@@ -69,6 +69,20 @@ export function rawDisplaySegments(raw, { gs1 = false } = {}) {
   return out;
 }
 
+// Control characters written out by name when copying: <GS> is how the spec writes an FNC1
+// separator in a scan (PP&EP v1.4 p16).
+const CONTROL_NAMES = { 0x04: 'EOT', 0x1c: 'FS', 0x1d: 'GS', 0x1e: 'RS' };
+
+/** A raw value for copying. Each control character becomes its visible name (every FNC1
+ *  separator becomes <GS>), so the separators survive pasting into text fields; everything
+ *  else is copied as captured. */
+export function rawCopyText(raw) {
+  return String(raw ?? '').replace(/[\x00-\x1f\x7f]/g, ch => {
+    const code = ch.charCodeAt(0);
+    return `<${CONTROL_NAMES[code] || `0x${code.toString(16).toUpperCase().padStart(2, '0')}`}>`;
+  });
+}
+
 /** Plain display name from the reported symbology only - the reader never renames a
  *  symbol from its payload content the way the audit views do. */
 export function readerSymbologyName(barcode) {
@@ -83,10 +97,10 @@ export function readerSymbologyName(barcode) {
   return barcode?.format || barcode?.symbology || 'Barcode';
 }
 
-/** Every decoded raw value, one per line, for the copy-all action. */
+/** Every decoded raw value, one per line, for the copy-all action (separators as <GS>). */
 export function readerCopyAllText(result) {
   return (result?.detectedBarcodes || [])
-    .map(b => rawContentOf(b).raw)
+    .map(b => rawCopyText(rawContentOf(b).raw))
     .filter(Boolean)
     .join('\n');
 }

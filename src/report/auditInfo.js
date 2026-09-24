@@ -7,7 +7,7 @@ import {
   isLinearBarcode,
   isQrBarcode
 } from '../scanner/barcodeTypes.js';
-import { rawContentOf } from './readerData.js';
+import { rawContentOf, rawCopyText } from './readerData.js';
 import { isStarTrackAtlValue, isStarTrackFreightItemValue, isStarTrackRoutingValue } from '../scanner/labelImages.js';
 import { SERVICE_CODE_MAP, STARTRACK_PRODUCT_CODE_MAP } from '../auditEngine.js';
 
@@ -71,10 +71,9 @@ export function barcodeDisplayName(b) {
  *    raw value
  *    ------------------
  *
- *  Raw values are the captured bytes, verbatim (FNC1 separators stay ASCII 29, and
- *  fixed-width QR payloads keep their padding), deduped so a symbol decoded on multiple
- *  passes is copied once; anything not covered by a named group falls back to its
- *  display name. */
+ *  Raw values are the captured bytes with each FNC1 separator written as <GS> (fixed-width
+ *  QR payloads keep their padding), deduped so a symbol decoded on multiple passes is
+ *  copied once; anything not covered by a named group falls back to its display name. */
 export function allBarcodesCopyText(audit) {
   const groups =
     audit?.carrier === 'startrack'
@@ -93,7 +92,7 @@ export function allBarcodesCopyText(audit) {
   const seen = new Set();
   const blocks = [];
   const push = (label, b) => {
-    const raw = rawContentOf(b).raw;
+    const raw = rawCopyText(rawContentOf(b).raw);
     const key = raw.trim();
     if (!key || seen.has(key)) return;
     seen.add(key);

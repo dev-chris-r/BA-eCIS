@@ -7,6 +7,7 @@ import {
   buildReaderResult,
   leadingFnc1Info,
   rawContentOf,
+  rawCopyText,
   rawDisplaySegments,
   readerCopyAllText,
   readerSymbologyName
@@ -83,4 +84,16 @@ test('buildReaderResult shapes a rule-free READ result and copy-all lists raw va
   assert.deepEqual(result.validations, []);
   assert.equal(result.selectedAuditMode.carrier, 'reader');
   assert.equal(readerCopyAllText(result), '00000000000000000017\nPRM2000MEL');
+});
+
+test('rawCopyText writes each FNC1 separator as <GS>, so it survives pasting', () => {
+  const dm = `0199312650999998912JD545583901000938305${GS}4203121${GS}9266724819${GS}8008250604201510`;
+  assert.equal(rawCopyText(dm), '0199312650999998912JD545583901000938305<GS>4203121<GS>9266724819<GS>8008250604201510');
+  assert.equal(rawCopyText('PRM4807TSV'), 'PRM4807TSV', 'values without control characters copy unchanged');
+  assert.equal(rawCopyText('A\x1eB\x04\x07'), 'A<RS>B<EOT><0x07>');
+  assert.equal(rawCopyText('AYR   '), 'AYR   ', 'fixed-width padding is kept');
+  assert.equal(
+    readerCopyAllText({ detectedBarcodes: [{ rawValue: '(01)1(420)3121', rawBytes: `011${GS}4203121` }] }),
+    '011<GS>4203121'
+  );
 });
