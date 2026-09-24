@@ -26,6 +26,10 @@ Every stage runs in the user's browser. The bundled server (or any static web ho
 4. **Check** — the audit engine works out which product the label is for (from the codes it just read), loads the matching rule set, and runs every rule: format, check digits, identity, routing, product/service combination, and printed text.
 5. **Report** — you get an overall PASS / REVIEW / FAIL verdict, a list per label, and one row per rule. Each row shows the value that was read, the rule it was checked against, and the result. Each barcode is also split into its individual fields so you can see exactly which part passed or failed. The report can be printed or saved as a PDF straight from the browser; the printed report covers the barcode findings with their colour coding (the text analysis stays on-screen only for now).
 
+**Optional merchant profile.** Before uploading, the specialist can enter the merchant's MLIDs, despatch IDs, StarTrack accounts and SSCC ranges, and load StarTrack's Location Master File (LOCATIONS.DAT). The audit then checks the label uses this merchant's own values and the correct depots and ports, instead of only checking their format. The profile stays in this browser; "Re-check the current report" applies changes without rescanning.
+
+**Hand-editable reference data.** `src/carriers/shared/reference-values.json` holds postcode ranges per state, shared border postcodes, test MLIDs and GS1 Australia prefixes. `src/carriers/eparcel/metro/metro-localities.json` lists every Metro locality. Edit either by hand, then run `npm run build`. Checks that use them only warn or add a note.
+
 One rule to remember: **the barcode is the source of truth.** Whatever the barcode decodes to is the real value. OCR text is only used to confirm that the printed label agrees with it — never the other way around.
 
 ---
@@ -176,6 +180,7 @@ are the source of truth, and extracted text is only ever a one-way cross-check.
 ```
 src/                  The app itself
   main.jsx            React UI: upload flow and audit orchestration
+  merchantProfilePanel.jsx   Optional merchant profile + Location Master File panel
   auditEngine.js      Public audit API: dispatches auditLabel through the carrier registry
   ruleEngine.js       Runs the JSON rules (generic — knows nothing about carriers)
   styles.css          All styling
@@ -183,6 +188,9 @@ src/                  The app itself
   carriers/           One package per carrier; a new carrier is a new folder here
     index.js          Carrier registry — the one place that lists the carriers
     shared/           Cross-carrier text primitives and audit plumbing
+      reference-values.json  Hand-editable postcode ranges, border postcodes, test MLIDs, GS1 prefixes
+      reference.js           Lookups over reference-values.json
+      merchantProfile.js     Parses the optional merchant profile (lists, SSCC ranges)
     formats/          Barcode formats used by more than one carrier (GS1 / SSCC)
     eparcel/          The eParcel pack
       audit.js             Evidence context, variant selection, carrier rule functions
@@ -194,10 +202,11 @@ src/                  The app itself
       formats/             eParcel barcode formats (article, GS1 DataMatrix)
       base/rules.json      Base rule set + documents registry (spec citations)
       parcel-post/ express-post/ returns/ sscc/    One rules.json per label type
-      metro/               rules.json + routing.js (Metro-only routing extraction)
+      metro/               rules.json + routing.js (Metro-only routing extraction),
+                           metro-localities.json + area.js (Metro service area)
     startrack/        The StarTrack pack — same shape: audit.js, facts.js,
                       referenceData.js, ruleSets.js, sections.jsx, standards.js,
-                      formats/ (freight item, routing, ATL, QR),
+                      formats/ (freight item, routing, ATL, QR, Location Master File),
                       base/ express/ premium/ fpp/ sscc/ rules.json per label type
   report/             Carrier-agnostic report UI
     reportView.jsx    The rule-by-rule report (value / rule / result panes)
