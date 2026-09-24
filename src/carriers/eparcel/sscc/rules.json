@@ -135,7 +135,7 @@
       "messages": {
         "pass": "The DataMatrix carries the same SSCC as the linear barcode.",
         "fail": "The DataMatrix article ({actual}) does not equal the SSCC decoded from the linear barcode.",
-        "missing": "The DataMatrix payload does not carry a recognisable SSCC article identifier in the AI 91 position, so it could not be compared to the linear SSCC.",
+        "missing": "The DataMatrix has no SSCC in the AI 91 position, so it can't be compared with the linear SSCC.",
         "skipped": "No valid linear SSCC was decoded, so the DataMatrix SSCC could not be cross-checked against it."
       }
     },
@@ -159,7 +159,7 @@
     {
       "id": "EP-ART-08",
       "title": "Visible article ID matches barcode",
-      "description": "The human-readable article identifier (on SSCC labels: the 20-digit AI 00 + SSCC string) must equal the decoded barcode article once spacing is removed. Text extraction is heuristic and may be affected by watermarks or label overlays.",
+      "description": "The printed article ID (on SSCC labels, the 20-digit AI 00 + SSCC) must match the barcode, ignoring spaces. Overlays and watermarks can throw off text reading.",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "barcode-structure",
@@ -191,7 +191,7 @@
       "messages": {
         "pass": "The label header does not read as a returns label.",
         "fail": "The label header reads as a returns label ({actual}); SSCC barcodes cannot be used for eParcel Returns. Confirm the label type and numbering.",
-        "skipped": "No label header text was extracted, so the returns prohibition could not be assessed."
+        "skipped": "The label header couldn't be read, so the returns check couldn't run."
       }
     },
     {

@@ -396,9 +396,13 @@ export function auditEparcelLabel({
   const decodedLinear = decodedLinearPresent(detectedBarcodes);
   const decodedDm = decodedDataMatrixPresent(detectedBarcodes);
 
+  // A DataMatrix is parsed from its captured bytes when the decoder reported them: the
+  // readable (HRI) text drops a trailing FNC1 and rewrites separators, which would hide the
+  // very encoding defects the FNC1 rules check (EP-DM-04/08/11).
   const parsed = detectedBarcodes
     .map(b => ({
       raw: b.rawValue || b.raw || b.text || '',
+      bytes: b.rawBytes || '',
       format: b.format || b.symbology || '',
       symbologyIdentifier: b.symbologyIdentifier || '',
       decoderSource: b.source || ''
@@ -406,7 +410,7 @@ export function auditEparcelLabel({
     .filter(s => s.raw)
     .map(s =>
       looksLikeDataMatrix(s.raw, s.format)
-        ? { ...parseGs1DataMatrix(s.raw), ...dataMatrixComplianceEvidence(s) }
+        ? { ...parseGs1DataMatrix(s.bytes || s.raw), ...dataMatrixComplianceEvidence(s) }
         : parseEparcelBarcode(s.raw)
     );
   // SSCC is proven by the linear barcode only (EP-SS-01); never let a GS1 Data

@@ -63,10 +63,19 @@ export function StatusIcon({ status }) {
 
 /** Display form of any rule input value: scalars as-is, string arrays one per line, anything
  *  else pretty-printed JSON (String() fallback when it cannot be serialised). */
+/** Makes captured control characters visible (ASCII 29 as ⟨GS⟩, others as hex) without
+ *  touching tabs and line breaks, so raw barcode evidence reads as it was scanned. */
+function showControls(text) {
+  return String(text).replace(/[\x00-\x08\x0b\x0c\x0e-\x1f\x7f]/g, ch =>
+    ch === '\x1d' ? '⟨GS⟩' : `⟨0x${ch.charCodeAt(0).toString(16).toUpperCase().padStart(2, '0')}⟩`
+  );
+}
+
 function formatInputValue(value) {
   if (value === null || value === undefined || value === '') return '';
-  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean') return String(value);
-  if (Array.isArray(value) && value.every(v => typeof v === 'string')) return value.join('\n');
+  if (typeof value === 'string' || typeof value === 'number' || typeof value === 'boolean')
+    return showControls(String(value));
+  if (Array.isArray(value) && value.every(v => typeof v === 'string')) return showControls(value.join('\n'));
   try {
     return JSON.stringify(value, null, 2);
   } catch {
@@ -172,7 +181,7 @@ function RuleRow({ v, standardFor }) {
             {v.evidence && (
               <details className="rule-evidence">
                 <summary>Evidence</summary>
-                <pre>{v.evidence}</pre>
+                <pre>{showControls(v.evidence)}</pre>
               </details>
             )}
           </div>

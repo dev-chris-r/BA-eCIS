@@ -48,8 +48,8 @@
       "evidence": ["barcodes.qrPresent", "text.hasStarTrackHeader"],
       "failStatus": "manual_review",
       "messages": {
-        "pass": "StarTrack label confirmed from a decoded barcode and/or header text. Verify the logo placement on the preview.",
-        "fail": "Could not confirm a StarTrack label: no StarTrack barcode decoded and no header wordmark in the extracted text. Check the logo on the preview."
+        "pass": "StarTrack label confirmed from a barcode or the header. Check the logo sits top left.",
+        "fail": "Couldn't confirm a StarTrack label: no StarTrack barcode was read and no StarTrack header was found. Check the logo on the label."
       }
     },
     {
@@ -66,8 +66,8 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Label/product code found in the printed label text: {actual}.",
-        "fail": "A three-character label code was not extracted from the printed label text. Decoded barcodes carry the product code, but the header must also display it - confirm on the preview.",
-        "missing": "A three-character label code was not extracted from the printed label text. Decoded barcodes carry the product code, but the header must also display it - confirm on the preview."
+        "fail": "No 3-letter label code was read from the header. The barcodes carry the product, but the header must print it too. Check it on the label.",
+        "missing": "No 3-letter label code was read from the header. The barcodes carry the product, but the header must print it too. Check it on the label."
       }
     },
     {
@@ -100,7 +100,7 @@
       "onMissing": "manual_review",
       "failStatus": "manual_review",
       "messages": {
-        "pass": "Receiver details were extracted from the printed label text.",
+        "pass": "Receiver details found in the label text.",
         "missing": "The receiver address wasn't found in the label text. Check it's printed under the logo."
       }
     },
@@ -117,7 +117,7 @@
       "onMissing": "manual_review",
       "failStatus": "manual_review",
       "messages": {
-        "pass": "Sender details text was extracted.",
+        "pass": "Sender details found in the label text.",
         "missing": "Sender details weren't found. Check the name, phone and address sit under the routing barcode."
       }
     },
@@ -148,8 +148,8 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Weight value found in the printed label text: {actual} kg.",
-        "fail": "A weight value was not extracted from the printed label text. The QR payload carries the weight, but the label must also display it - check the WEIGHT value on the preview.",
-        "missing": "A weight value was not extracted from the printed label text. The QR payload carries the weight, but the label must also display it - check the WEIGHT value on the preview."
+        "fail": "No weight was read from the label. The QR carries it, but the label must print it too. Check the WEIGHT value.",
+        "missing": "No weight was read from the label. The QR carries it, but the label must print it too. Check the WEIGHT value."
       }
     },
     {
@@ -166,14 +166,14 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Cubic volume found in the printed label text: {actual} m3.",
-        "fail": "A cubic volume was not extracted from the printed label text. The QR payload carries the cube, but the label must also display it - check the CUBE value on the preview.",
-        "missing": "A cubic volume was not extracted from the printed label text. The QR payload carries the cube, but the label must also display it - check the CUBE value on the preview."
+        "fail": "No cube was read from the label. The QR carries it, but the label must print it too. Check the CUBE value.",
+        "missing": "No cube was read from the label. The QR carries it, but the label must print it too. Check the CUBE value."
       }
     },
     {
       "id": "ST-QR-01",
       "title": "StarTrack 2D QR barcode decoded",
-      "description": "The StarTrack 2D QR barcode must appear on all labels and carry the fixed-width shipment payload.",
+      "description": "Every label carries the StarTrack 2D QR barcode, holding the fixed-width consignment data.",
       "obligation": "mandatory",
       "severity": "CRITICAL",
       "category": "startrack-qr",
@@ -181,7 +181,7 @@
       "input": "barcodes.qrPresent",
       "assert": { "op": "fn", "name": "requiredDecode", "args": { "visiblePath": "barcodes.dataMatrixVisible", "label": "The StarTrack 2D QR barcode" } },
       "messages": {
-        "pass": "StarTrack QR payload decoded from the uploaded file."
+        "pass": "StarTrack QR barcode read."
       }
     },
     {
@@ -197,8 +197,8 @@
       "input": "item.length",
       "assert": { "op": "range", "min": 290 },
       "messages": {
-        "pass": "QR payload length is {actual} characters, consistent with the fixed-width layout.",
-        "fail": "QR payload is only {actual} characters; a conforming StarTrack QR is at least 290, so some fixed-width fields below may be truncated or misaligned."
+        "pass": "The QR is {actual} characters, matching the fixed-width layout.",
+        "fail": "The QR is only {actual} characters. It should be at least 290, so some fields below may be cut short or shifted."
       }
     },
     {
@@ -417,7 +417,7 @@
       "messages": {
         "pass": "Printed CONNOTE matches the freight barcode connote.",
         "fail": "The printed CONNOTE does not match the connote embedded in the freight item barcode ({actual}). Check it on the label. Overlays and watermarks can throw off text reading.",
-        "skipped": "No printed CONNOTE value was extracted, so the printed connote could not be compared to the freight barcode."
+        "skipped": "No printed CONNOTE was read, so it couldn't be compared with the freight barcode."
       }
     },
     {
@@ -456,7 +456,7 @@
     {
       "id": "ST-RTE-03",
       "title": "Routing and product compatibility",
-      "description": "The routing label code must correspond to the product on the freight barcode or QR payload (for example FPP routes as PRM, FPA routes as ARL).",
+      "description": "The routing label code must match the product in the freight barcode or QR, e.g. FPP routes as PRM and FPA as ARL.",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "startrack-product",
@@ -467,13 +467,13 @@
       "input": "item",
       "assert": { "op": "fn", "name": "routeProductMatch" },
       "messages": {
-        "skipped": "No product code was decoded from a freight barcode or QR payload, so routing/product compatibility could not be assessed."
+        "skipped": "No product was read from a freight barcode or the QR, so the routing label code couldn't be checked against it."
       }
     },
     {
       "id": "ST-RTE-04",
       "title": "Routing and QR postcodes match",
-      "description": "The postcode in the routing barcode must equal the receiver postcode in the QR payload.",
+      "description": "The routing barcode postcode must equal the QR receiver postcode.",
       "expectedText": "The QR postcode ({expected})",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -487,7 +487,7 @@
       "evidence": ["derived.qrPostcodes"],
       "assert": { "op": "fn", "name": "inPathList", "args": { "path": "derived.qrPostcodes", "label": "QR postcode" } },
       "messages": {
-        "skipped": "No receiver postcode was decoded from the QR payload, so the routing barcode postcode could not be cross-checked.",
+        "skipped": "No receiver postcode was read from the QR, so the routing postcode couldn't be compared.",
         "fail": "Routing postcode {actual} doesn't match the QR postcode ({expected})."
       }
     },
@@ -578,7 +578,7 @@
       "input": "item.fields",
       "assert": { "op": "fn", "name": "qrMandatoryFields" },
       "messages": {
-        "empty": "No StarTrack QR payload was decoded, so none of the mandatory QR fields could be assessed."
+        "empty": "No StarTrack QR barcode was read, so its mandatory fields couldn't be checked."
       }
     },
     {
@@ -1001,6 +1001,7 @@
       "input": "text.returnTransferIndicator",
       "assert": { "op": "present" },
       "onMissing": "manual_review",
+      "failStatus": "manual_review",
       "messages": {
         "pass": "Return/transfer indicator found on the label: {actual}.",
         "missing": "The QR says this is a return or transfer, but *RETURN* or *TRANSFER* wasn't found in the header."
@@ -1009,7 +1010,7 @@
     {
       "id": "ST-ATL-EXPECTED",
       "title": "ATL barcode present when expected",
-      "description": "When the label or QR payload indicates Authority To Leave, the C999999999 ATL barcode must be printed in the header.",
+      "description": "When the label or QR shows Authority To Leave, the C999999999 ATL barcode must be printed in the header.",
       "obligation": "conditional",
       "severity": "ERROR",
       "category": "startrack-atl",
@@ -1043,7 +1044,7 @@
     {
       "id": "ST-ATL-05",
       "title": "ATL barcode matches",
-      "description": "The decoded ATL barcode must equal the ATL number carried in the QR payload and any visible ATL text.",
+      "description": "The ATL barcode must equal the ATL number in the QR and any printed ATL text.",
       "expectedText": "The QR or printed ATL number ({expected})",
       "obligation": "conditional",
       "severity": "ERROR",
@@ -1078,7 +1079,7 @@
     {
       "id": "ST-X-01",
       "title": "QR connote matches barcode",
-      "description": "The consignment number in the QR payload must equal the connote embedded in the freight item barcode.",
+      "description": "The QR connote must equal the connote in the freight item barcode.",
       "expectedText": "The freight barcode connote ({expected})",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -1099,7 +1100,7 @@
     {
       "id": "ST-X-02",
       "title": "QR item matches barcode",
-      "description": "The freight item number in the QR payload must equal the decoded 20-character freight item barcode.",
+      "description": "The QR freight item number must equal the 20-character freight item barcode.",
       "expectedText": "The freight barcode ({expected})",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -1135,7 +1136,7 @@
       "messages": {
         "pass": "Printed article ID matches the decoded freight item barcode.",
         "fail": "The printed article ID does not match the decoded freight item barcode ({actual}). Check it on the label. Overlays and watermarks can throw off text reading.",
-        "skipped": "No printed article ID was extracted, so the human-readable value could not be compared to the freight barcode."
+        "skipped": "No printed article ID was read, so it couldn't be compared with the freight barcode."
       }
     },
     {
@@ -1152,7 +1153,7 @@
       "assert": { "op": "absent" },
       "failStatus": "manual_review",
       "messages": {
-        "fail": "A linear barcode decoded as \"{actual}\" but does not match any StarTrack barcode structure. Check the symbol on the preview - it may be malformed or foreign to this label."
+        "fail": "A linear barcode read as \"{actual}\" but matches no StarTrack format. Check it on the label: it may be malformed or from another system."
       }
     },
     {

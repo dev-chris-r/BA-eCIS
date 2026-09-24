@@ -130,7 +130,7 @@
       "messages": {
         "pass": "QR movement type is N (despatch), as required for SSCC labels.",
         "fail": "QR movement type is {actual}. SSCC barcodes may only be used for despatch movements.",
-        "empty": "No StarTrack QR payload was decoded, so the despatch-only movement restriction could not be assessed. SSCC barcodes may only be used for despatch movements - confirm the label is not a return or transfer."
+        "empty": "No StarTrack QR barcode was read, so the despatch-only rule couldn't be checked. SSCC barcodes are for despatch only, so check the label isn't a return or transfer."
       }
     },
     {
@@ -151,13 +151,13 @@
       "messages": {
         "pass": "Printed SSCC digits match the decoded AI 00 SSCC.",
         "fail": "The printed SSCC digits do not match the decoded AI 00 SSCC ({actual}). Check it on the label. Overlays and watermarks can throw off text reading.",
-        "skipped": "No human-readable SSCC digits were extracted from the label text, so the printed digits could not be compared to the decoded SSCC."
+        "skipped": "No printed SSCC digits were read, so they couldn't be compared with the barcode."
       }
     },
     {
       "id": "ST-SSC-07",
       "title": "Product comes from QR",
-      "description": "SSCC numbering cannot embed a StarTrack product or service, so product context is taken from the QR payload and routing barcode instead of the article identifier.",
+      "description": "SSCC numbers can't carry a StarTrack product, so the product comes from the QR and routing barcodes.",
       "obligation": "mandatory",
       "severity": "INFO",
       "category": "startrack-sscc",

@@ -30,8 +30,8 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Metro header marking was found: {actual}.",
-        "fail": "Header text does not indicate a Metro label: {actual}. Confirm the M2M marking on the preview.",
-        "missing": "No M2M header marking was extracted. Confirm the Metro branding visually on the preview."
+        "fail": "The header doesn't show a Metro label: {actual}. Check the M2M mark on the label.",
+        "missing": "No M2M mark was read. Check the Metro branding on the label."
       }
     },
     {
@@ -51,7 +51,7 @@
       "messages": {
         "pass": "Routing details line is present and correctly formatted: {actual}.",
         "fail": "Routing details line is not formatted as uppercase AU, state and postcode: {actual}.",
-        "missing": "No routing details line (AU + state + postcode) was extracted. Confirm it is present, uppercase and centred on the preview."
+        "missing": "No routing line (AU, state, postcode) was read. Check it's printed, in capitals and centred."
       }
     },
     {
@@ -70,7 +70,7 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Routing postcode {actual} matches the delivery address postcode.",
-        "fail": "Routing postcode {actual} does not match any postcode in the delivery address. Confirm visually - text extraction is heuristic."
+        "fail": "Routing postcode {actual} doesn't match the delivery address postcode. Check it on the label, as text reading can misread it."
       }
     },
     {
@@ -89,7 +89,7 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Routing state {actual} matches the delivery address state.",
-        "fail": "Routing state {actual} does not match the delivery address state. Confirm visually - text extraction is heuristic."
+        "fail": "Routing state {actual} doesn't match the delivery address state. Check it on the label, as text reading can misread it."
       }
     },
     {
@@ -131,7 +131,7 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "A consignment number is printed on the label.",
-        "fail": "No consignment number was extracted from the label. Confirm the Consignment No field is present on the preview."
+        "fail": "No consignment number was read. Check the Consignment No field is printed."
       }
     },
     {
@@ -150,7 +150,7 @@
       "messages": {
         "pass": "Article count is printed on the label: {actual}.",
         "fail": "Article count text is not in the expected n of N form: {actual}.",
-        "missing": "No article count (n of N) was extracted. Confirm the Article n of N field is present on the preview."
+        "missing": "No article count (n of N) was read. Check the Article n of N field is printed."
       }
     }
   ]

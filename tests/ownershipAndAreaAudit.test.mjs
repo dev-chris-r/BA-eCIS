@@ -59,9 +59,16 @@ test('EP-MER-01 checks the MLID against the merchant profile only when one is en
   assert.match(fail.message, /isn't in the merchant profile/);
 });
 
-test('EP-TO-09 catches a DataMatrix carrying the sender postcode', () => {
+test('EP-TO-08 and EP-TO-09 catch a DataMatrix carrying the sender postcode', () => {
   const audit = eparcelLabel({ postcode: '2000', text: ADDRESSES('MELBOURNE VIC 3000', 'SYDNEY NSW 2000') });
-  assert.equal(one(audit, 'EP-TO-08').status, 'pass', 'the old check matches any printed postcode');
+  const match = one(audit, 'EP-TO-08');
+  assert.equal(match.status, 'fail', 'only the delivery address postcode counts');
+  assert.match(match.message, /isn't the delivery address postcode \(3000\)/);
+  assert.equal(
+    one(eparcelLabel({ postcode: '3000', text: ADDRESSES('MELBOURNE VIC 3000', 'SYDNEY NSW 2000') }), 'EP-TO-08')
+      .status,
+    'pass'
+  );
   const row = one(audit, 'EP-TO-09');
   assert.equal(row.status, 'warning');
   assert.match(row.message, /NSW postcode, but the delivery address is in VIC/);

@@ -52,7 +52,7 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Dangerous goods declaration text is present.",
-        "fail": "Dangerous goods declaration was not confirmed from extracted text."
+        "fail": "The dangerous goods declaration wasn't found in the label text. Check it's printed."
       }
     },
     {
@@ -68,7 +68,7 @@
       "onMissing": "manual_review",
       "failStatus": "warning",
       "messages": {
-        "pass": "TO address block text was extracted.",
+        "pass": "Delivery address found under TO or DELIVER TO.",
         "missing": "No TO or DELIVER TO address was found. Check the delivery address is printed."
       }
     },
@@ -94,7 +94,7 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Suburb, state and postcode line is correctly formatted: {actual}.",
-        "fail": "Suburb/state/postcode line should be on one line, fully capitalised, with no commas. Text extraction is heuristic, so check the label manually. Found: {actual}."
+        "fail": "The suburb, state and postcode line should be one line, in capitals, with no commas. Found: {actual}. Check it on the label, as text reading can misread it."
       }
     },
     {
@@ -110,7 +110,7 @@
       "onMissing": "manual_review",
       "failStatus": "warning",
       "messages": {
-        "pass": "FROM address block text was extracted.",
+        "pass": "Sender address found under FROM or SENDER.",
         "missing": "No FROM or SENDER address was found. Check the sender address is printed."
       }
     },
@@ -136,7 +136,7 @@
       "failStatus": "manual_review",
       "messages": {
         "pass": "Sender suburb, state and postcode line is correctly formatted: {actual}.",
-        "fail": "Sender suburb/state/postcode line should be on one line, fully capitalised, with no commas. Text extraction is heuristic, so check the label manually. Found: {actual}."
+        "fail": "The sender's suburb, state and postcode line should be one line, in capitals, with no commas. Found: {actual}. Check it on the label, as text reading can misread it."
       }
     },
     {
@@ -277,7 +277,7 @@
       "assert": { "op": "notEmpty" },
       "messages": {
         "pass": "Valid article identifier(s) parsed from decoded barcode data.",
-        "fail": "No valid article identifier could be extracted from decoded barcode data."
+        "fail": "No valid article ID could be read from the barcodes."
       }
     },
     {
@@ -399,7 +399,7 @@
     {
       "id": "EP-ART-07",
       "title": "Visible consignment matches barcode",
-      "description": "The visible Cons No must match the consignment embedded in the decoded article. Text extraction is heuristic and may be affected by watermarks or label overlays.",
+      "description": "The printed Cons No must match the consignment in the barcode. Overlays and watermarks can throw off text reading.",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "barcode-structure",
@@ -418,7 +418,7 @@
     {
       "id": "EP-ART-08",
       "title": "Visible article ID matches barcode",
-      "description": "The human-readable AP Article ID must equal the decoded barcode article once spacing is removed. Text extraction is heuristic and may be affected by watermarks or label overlays.",
+      "description": "The printed AP Article ID must match the barcode article, ignoring spaces. Overlays and watermarks can throw off text reading.",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "barcode-structure",
@@ -583,7 +583,7 @@
       "assert": { "op": "equals", "value": 0 },
       "messages": {
         "pass": "Each encoded AI is preceded by exactly one FNC1 group separator.",
-        "fail": "Found {actual} empty segment(s) between group separators: the payload carries a doubled or trailing FNC1. When no DPID is available, AI 92 and its separator must both be removed."
+        "fail": "Found {actual} empty gap(s) between separators: the DataMatrix has a doubled or trailing FNC1. If there's no DPID, remove AI 92 and its separator together."
       }
     },
     {
@@ -602,14 +602,14 @@
       "messages": {
         "pass": "AI 420 postcode is present: {actual}.",
         "fail": "AI 420 delivery postcode is missing or invalid: {actual}.",
-        "missing": "AI 420 delivery postcode is missing from the DataMatrix payload."
+        "missing": "The DataMatrix has no AI 420 delivery postcode."
       }
     },
     {
       "id": "EP-TO-08",
-      "title": "Barcode postcode printed on label",
-      "description": "The DataMatrix postcode must be the delivery postcode. This check only confirms it's printed somewhere on the label.",
-      "expectedText": "A printed postcode ({expected})",
+      "title": "Barcode postcode matches address",
+      "description": "The DataMatrix postcode must equal the postcode in the delivery (TO) address.",
+      "expectedText": "The delivery address postcode ({expected})",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "datamatrix",
@@ -618,10 +618,10 @@
       "itemWhen": { "path": "item.postcode", "op": "present" },
       "input": "item.postcode",
       "evidence": ["text.postcodeLines"],
-      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.postcodes4", "label": "printed postcode" } },
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.toPostcodes", "label": "delivery address postcode" } },
       "messages": {
-        "pass": "Barcode postcode {actual} is printed on the label.",
-        "fail": "Barcode postcode {actual} isn't printed on the label. Printed postcodes: {expected}."
+        "pass": "Barcode postcode {actual} matches the delivery address.",
+        "fail": "Barcode postcode {actual} isn't the delivery address postcode ({expected})."
       }
     },
     {
@@ -677,6 +677,23 @@
       "assert": { "op": "equals", "value": false },
       "messages": {
         "pass": "No DPID. That's allowed when AI 92 and its separator are both removed."
+      }
+    },
+    {
+      "id": "EP-DM-07",
+      "title": "AI 8008 date and time present",
+      "description": "The DataMatrix must carry AI 8008, the label date and time. The date itself isn't checked.",
+      "obligation": "mandatory",
+      "severity": "CRITICAL",
+      "category": "datamatrix",
+      "source": { "doc": "PP&EP v1.4", "page": 19 },
+      "forEach": "barcodes.datamatrix",
+      "input": "item.dateTime",
+      "evidence": ["item.raw"],
+      "assert": { "op": "present" },
+      "messages": {
+        "pass": "AI 8008 is present: {actual}. The date and time aren't checked.",
+        "missing": "The DataMatrix has no AI 8008 (label date and time). It's mandatory."
       }
     },
     {

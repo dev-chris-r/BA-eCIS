@@ -5,7 +5,7 @@
   "extends": "startrack-base",
   "spec": { "doc": "StarTrack Label Specifications - Modify Your Own System (MOS) v9", "date": "2020-10-14" },
   "constants": {
-    "allowedProducts": ["EXP", "TSE", "RET", "RE2"]
+    "allowedProducts": ["EXP", "TSE", "RET", "RE2", "APT"]
   },
   "rules": [
     {

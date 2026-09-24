@@ -24,7 +24,7 @@
       "messages": {
         "pass": "Header branding is consistent with a Parcel Post label.",
         "fail": "Header text suggests Express Post branding on a Parcel Post audit: {actual}.",
-        "missing": "Product header text was not extracted. Confirm the Parcel Post header visually on the preview."
+        "missing": "The product header couldn't be read. Check the Parcel Post header on the label."
       }
     }
   ]

@@ -20,11 +20,11 @@ Every stage runs in the user's browser. The bundled server (or any static web ho
 
 ## How it works, step by step
 
-1. **Upload** — you drop one or more label files into either the eParcel section or the StarTrack section. The two are kept separate so a label is always judged against the right rules. A third choice, **Barcode Reader**, runs the same render-and-scan steps with no rules at all: it simply lists every decoded barcode with its raw content (FNC1 characters shown where the scan captured them) — steps 4 and 5 below don't apply, and OCR is skipped.
+1. **Upload** — you drop one or more label files (up to 7 MB each) into either the eParcel section or the StarTrack section. The two are kept separate so a label is always judged against the right rules. A third choice, **Barcode Reader**, runs the same render-and-scan steps with no rules at all: it simply lists every decoded barcode with its raw content (FNC1 characters shown where the scan captured them) — steps 4 and 5 below don't apply, and OCR is skipped.
 2. **Render** — each PDF page or image is drawn in the browser. If a label is sideways it gets rotated, and a sheet with several labels on it is cut into individual labels.
 3. **Read** — the app scans each label for barcodes (linear, Data Matrix, QR) using three decoders, and runs OCR to read the printed text.
 4. **Check** — the audit engine works out which product the label is for (from the codes it just read), loads the matching rule set, and runs every rule: format, check digits, identity, routing, product/service combination, and printed text.
-5. **Report** — you get an overall PASS / REVIEW / FAIL verdict, a list per label, and one row per rule. Each row shows the value that was read, the rule it was checked against, and the result. Each barcode is also split into its individual fields so you can see exactly which part passed or failed. The report can be printed or saved as a PDF straight from the browser; the printed report covers the barcode findings with their colour coding (the text analysis stays on-screen only for now).
+5. **Report** — you get an overall PASS / REVIEW / FAIL verdict, a list per label, and one row per rule. Each row shows the value that was read, the rule it was checked against, and the result. Each barcode is also split into its individual fields so you can see exactly which part passed or failed. Barcode values are shown exactly as scanned, and FNC1 appears only where the scan captured it. The report can be printed or saved as a PDF straight from the browser; the printed report covers the barcode findings with their colour coding (the text analysis stays on-screen only for now).
 
 One rule to remember: **the barcode is the source of truth.** Whatever the barcode decodes to is the real value. OCR text is only used to confirm that the printed label agrees with it — never the other way around.
 
@@ -37,7 +37,7 @@ One rule to remember: **the barcode is the source of truth.** Whatever the barco
 | Barcode reading | Finds and decodes every barcode on the label: linear, Data Matrix, QR                                                                   |
 | Barcode parsing | Splits raw barcode strings into their fields — GTIN, article ID, SSCC, despatch ID, postcode, DPID, dates                               |
 | Field checks    | Each field is checked for position, length, allowed values and check digit, and shown with its own status                               |
-| Rule checks     | Regex, equality, ranges, date formats, cross-field comparisons, check-digit maths, product/service matrix                               |
+| Rule checks     | Regex, equality, ranges, cross-field comparisons, check-digit maths, product/service matrix. Dates are shown but not checked            |
 | Reference data  | Built-in tables of eParcel products and services, and StarTrack products, label codes and unit types                                    |
 | Evidence        | Full-label previews, a cropped image of every barcode, and a badge on every value showing where it came from (barcode, OCR, or derived) |
 
@@ -204,13 +204,13 @@ src/                  The app itself
     common.jsx        Shared components: section chrome, rail nav, field lines, copy buttons
     sections.jsx      Maps an audit to its report sections (dispatches by carrier)
     auditInfo.js      Pure helpers over the audit result: headers, summaries, copy-all text
-    segments.js       Colour-coded barcode field segmentation for display
+    segments.js       Colour-coded barcode fields, sliced from the raw captured bytes
     printReport.jsx   Print / Save-as-PDF export: the dedicated printed document + print trigger
     print.css         The printed report's entire stylesheet (A4, one page per barcode)
     standards.js      Merges the carriers' spec example texts
     barcodeFieldSpecs.js   Barcode field breakdown specs: per-field check, obligation, citation
     ruleSource.js     Spec citation line for the report (document title, version, page)
-    readerData.js     Barcode Reader mode data shaping (leading-FNC1 evidence, raw byte display)
+    readerData.js     Raw byte display and leading-FNC1 evidence (all views), Reader mode data
     readerReport.jsx  Barcode Reader mode report: rule-free per-barcode cards
   preprocess.js       Rotates sideways labels, splits multi-label sheets
   ocrText.js          OCR of the printed label text

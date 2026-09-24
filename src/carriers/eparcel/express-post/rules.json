@@ -22,9 +22,9 @@
       "onMissing": "manual_review",
       "failStatus": "manual_review",
       "messages": {
-        "pass": "Express Post header text was found: {actual}. Confirm the yellow header colour on the preview.",
-        "fail": "Header text does not indicate Express Post: {actual}. Confirm the product header on the preview.",
-        "missing": "Product header text was not extracted. Confirm the Express Post header (and its yellow colour) visually on the preview."
+        "pass": "Express Post header read: {actual}. Check the header is yellow on the label.",
+        "fail": "The header doesn't say Express Post: {actual}. Check the product header on the label.",
+        "missing": "The product header couldn't be read. Check the Express Post header and its yellow colour on the label."
       }
     }
   ]

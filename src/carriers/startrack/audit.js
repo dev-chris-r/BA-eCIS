@@ -332,8 +332,10 @@ function selectStarTrackVariant(selectedFormat, productCodes) {
   if (selectedFormat === 'sscc') return 'sscc';
   const codes = productCodes.filter(Boolean);
   if (codes.some(c => c === 'FPP' || c === 'FPA')) return 'fpp';
-  if (codes.some(c => ['PRM', 'APT', 'ARL'].includes(c))) return 'premium';
-  if (codes.some(c => ['EXP', 'TSE', 'RET', 'RE2'].includes(c))) return 'express';
+  if (codes.some(c => ['PRM', 'ARL'].includes(c))) return 'premium';
+  // APT (Premium Tail-Lift) is a Special Services product despite its name (MOS v9 p7), so it
+  // takes the Nearest Depot and the Express/Special Services checks.
+  if (codes.some(c => ['EXP', 'TSE', 'RET', 'RE2', 'APT'].includes(c))) return 'express';
   return 'base';
 }
 
