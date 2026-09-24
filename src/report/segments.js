@@ -261,7 +261,9 @@ export function rawSegments(raw, kind, identifier = '') {
   let segs = (body.segs || []).filter(s => s && String(s.text).length > 0);
   if (!segs.length || segs.map(s => s.text).join('') !== value) segs = wholeSegments(value, gs1);
   if (!ident) return segs;
-  if (gs1) return [{ text: '', ident, label: 'FNC1 start', display: `⟨FNC1⟩ ${ident}` }, ...segs];
+  // The leading FNC1 shows as its identifier alone (]d2, ]C1), the way the spec writes a scan
+  // (PP&EP v1.4 p27); the hover names it.
+  if (gs1) return [{ text: '', ident, label: 'FNC1 start', display: ident, title: 'FNC1 in first position' }, ...segs];
   return body.gs1Expected ? [{ text: '', ident, label: 'Symbology identifier', display: ident }, ...segs] : segs;
 }
 

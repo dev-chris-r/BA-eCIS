@@ -577,8 +577,8 @@ export function CopyButton({ value, label = 'Copy barcode value', text }) {
 }
 
 /** A barcode's captured raw content, byte-true: control characters render as visible markers
- *  (ASCII 29 as FNC1 only in a GS1 symbol), and a leading FNC1 marker appears only when the
- *  symbology identifier proves FNC1 in the first position. */
+ *  (ASCII 29 as FNC1 only in a GS1 symbol). The leading FNC1 shows as its symbology identifier
+ *  (]d2, ]C1), the way the spec writes a scan, and only when that identifier proves it. */
 export function RawCode({ barcode, className = '' }) {
   const { raw } = rawContentOf(barcode);
   const fnc1 = leadingFnc1Info(barcode?.symbologyIdentifier);
@@ -586,11 +586,8 @@ export function RawCode({ barcode, className = '' }) {
   return (
     <code className={`raw-code raw-code-block ${className}`.trim()}>
       {fnc1.status === 'first' ? (
-        <span
-          className="ctrl-char ctrl-char-lead"
-          title={`FNC1 in first position - signalled by symbology identifier ${fnc1.code}, not transmitted as data`}
-        >
-          ⟨FNC1⟩ {fnc1.code}
+        <span className="ctrl-char ctrl-char-lead" title="FNC1 in first position">
+          {fnc1.code}
         </span>
       ) : null}
       {segments.map((seg, i) =>
@@ -642,7 +639,11 @@ export function SegmentedCode({
       <div className="segmented-code-row">
         <code className="segmented-code">
           {segs.map((s, i) => (
-            <span key={i} className={s.display ? 'seg seg-sep' : `seg seg-c${i % SEG_PALETTE}`} title={s.label}>
+            <span
+              key={i}
+              className={s.display ? 'seg seg-sep' : `seg seg-c${i % SEG_PALETTE}`}
+              title={s.title ?? s.label}
+            >
               {s.display ?? String(s.text)}
             </span>
           ))}

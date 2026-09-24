@@ -18,9 +18,11 @@ const labels = segs => segs.map(s => s.label);
 
 test('SSCC map leads with an FNC1 marker only when the scan captured ]C1', () => {
   const segs = rawSegments(SSCC, 'sscc', ']C1');
+  // The leading FNC1 shows as its identifier alone, as the spec writes a scan; the hover names it.
+  const { label, display, text, ident, title } = segs[0];
   assert.deepEqual(
-    { label: segs[0].label, display: segs[0].display, text: segs[0].text, ident: segs[0].ident },
-    { label: 'FNC1 start', display: '⟨FNC1⟩ ]C1', text: '', ident: ']C1' }
+    { label, display, text, ident, title },
+    { label: 'FNC1 start', display: ']C1', text: '', ident: ']C1', title: 'FNC1 in first position' }
   );
   assert.equal(segs[1].label, 'AI 00');
   assert.equal(joined(segs), SSCC, 'the marker adds nothing to the raw value');
