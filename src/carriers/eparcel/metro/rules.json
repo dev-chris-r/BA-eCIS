@@ -91,6 +91,32 @@
       }
     },
     {
+      "id": "EP-MET-07",
+      "title": "Delivery is inside the Metro area",
+      "description": "Metro only delivers to listed localities in Adelaide, Brisbane, Melbourne, Perth and Sydney. The list lives in metro-localities.json.",
+      "obligation": "mandatory",
+      "severity": "WARNING",
+      "category": "address-format",
+      "source": { "doc": "Metro V2.0", "page": 7 },
+      "when": { "path": "derived.metroDelivery", "op": "present" },
+      "input": "derived.metroDelivery",
+      "assert": { "op": "fn", "name": "metroInArea" },
+      "failStatus": "warning"
+    },
+    {
+      "id": "EP-MET-08",
+      "title": "Sender and delivery in the same Metro city",
+      "description": "Metro parcels are picked up and delivered in the same city, for example Melbourne to Melbourne.",
+      "obligation": "mandatory",
+      "severity": "WARNING",
+      "category": "address-format",
+      "source": { "doc": "Metro V2.0", "page": 7 },
+      "when": { "path": "derived.metroRoute", "op": "present" },
+      "input": "derived.metroRoute",
+      "assert": { "op": "fn", "name": "metroSameCity" },
+      "failStatus": "warning"
+    },
+    {
       "id": "EP-MET-05",
       "title": "Consignment number printed",
       "description": "The consignment number assigned when the shipment was created is a mandatory Metro label field. Its agreement with the decoded barcode is checked separately by EP-ART-07.",

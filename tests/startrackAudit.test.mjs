@@ -77,11 +77,11 @@ test('ST-RTE-05 holds every decoded routing barcode at manual review with a depo
   assert.equal(rows.length, 2, 'one review row per decoded routing barcode');
   for (const row of rows) {
     assert.equal(row.status, 'manual_review');
-    assert.match(row.message, /manual validation against StarTrack's Location Master File/);
+    assert.match(row.message, /Location Master File/);
   }
-  const standardRow = rows.find(r => /depot\/port SYD/.test(r.message));
+  const standardRow = rows.find(r => /Depot SYD is well-formed/.test(r.message));
   assert.ok(standardRow, 'SSS9999DD routing names its decoded depot/port');
-  const gs1Row = rows.find(r => /GS1 421 routing barcode/.test(r.message));
+  const gs1Row = rows.find(r => /GS1 421 routing barcode has no depot/.test(r.message));
   assert.ok(gs1Row, 'GS1 421 routing points the review at the QR destination depot');
   assert.notEqual(audit.summary.overallStatus, 'PASS', 'routing audits can no longer end in a clean PASS');
 });

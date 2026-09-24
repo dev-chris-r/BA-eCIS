@@ -21,6 +21,8 @@ import { ServiceArticleBreakdownSection, getAuditSections } from './report/secti
 import { PrintReport, printAuditReport } from './report/printReport.jsx';
 import { ReaderReportView } from './report/readerReport.jsx';
 import { buildReaderResult } from './report/readerData.js';
+import { MerchantProfilePanel } from './merchantProfilePanel.jsx';
+import { parseLocationMasterFile } from './carriers/startrack/formats/locationMasterFile.js';
 import { DataMatrixSection, LinearBarcodeSection } from './carriers/eparcel/sections.jsx';
 import {
   StarTrackAtlSection,
@@ -53,6 +55,34 @@ function labelFamilyName(labelFamily) {
 }
 // Cap for the on-screen scan timing log: newest lines are kept, the oldest fall off.
 const MAX_SCAN_DEBUG_LINES = 220;
+
+// The merchant profile and Location Master File are conveniences kept in this browser only.
+// Storage can be unavailable or full, so every access is guarded and the app works without it.
+const PROFILE_STORAGE_KEY = 'barcodeAuditer.merchantProfile.v1';
+const LMF_STORAGE_KEY = 'barcodeAuditer.locationMasterFile.v1';
+const MAX_LMF_BYTES = 20 * 1024 * 1024;
+function loadStored(key) {
+  try {
+    return JSON.parse(window.localStorage.getItem(key) || 'null');
+  } catch {
+    return null;
+  }
+}
+function saveStored(key, value) {
+  try {
+    if (value == null) window.localStorage.removeItem(key);
+    else window.localStorage.setItem(key, JSON.stringify(value));
+    return true;
+  } catch {
+    return false;
+  }
+}
+function loadStoredLmf() {
+  const stored = loadStored(LMF_STORAGE_KEY);
+  if (!stored?.text) return null;
+  const parsed = parseLocationMasterFile(stored.text);
+  return parsed.recordCount ? { fileName: stored.fileName, parsed, persisted: true } : null;
+}
 
 const INITIAL_WORKFLOW = {
   // Locks upload controls while the local render -> scan -> audit pipeline is active.
@@ -120,6 +150,38 @@ function App() {
   // Report view: the upload panel moves into a dismissable overlay opened from the rail.
   // Closing it preserves the current report; a new upload replaces the report.
   const [showUploader, setShowUploader] = useState(false);
+  // Optional merchant profile (raw typed text) and StarTrack Location Master File.
+  const [merchantProfile, setMerchantProfile] = useState(() => loadStored(PROFILE_STORAGE_KEY) || {});
+  const [locationMasterFile, setLocationMasterFile] = useState(loadStoredLmf);
+  const [lmfError, setLmfError] = useState('');
+
+  function updateMerchantProfile(next) {
+    setMerchantProfile(next);
+    saveStored(PROFILE_STORAGE_KEY, next);
+  }
+
+  async function loadLocationMasterFile(file) {
+    if (!file) return;
+    setLmfError('');
+    if (file.size > MAX_LMF_BYTES) {
+      setLmfError(`${file.name} is ${formatBytes(file.size)}, which is too large for a Location Master File.`);
+      return;
+    }
+    const text = await file.text();
+    const parsed = parseLocationMasterFile(text);
+    if (!parsed.recordCount) {
+      setLmfError(`No StarTrack locations were found in ${file.name}. Load the LOCATIONS.DAT file StarTrack issued.`);
+      return;
+    }
+    const persisted = saveStored(LMF_STORAGE_KEY, { fileName: file.name, text });
+    setLocationMasterFile({ fileName: file.name, parsed, persisted });
+  }
+
+  function removeLocationMasterFile() {
+    saveStored(LMF_STORAGE_KEY, null);
+    setLocationMasterFile(null);
+    setLmfError('');
+  }
 
   const { processing, scanDebugLines, message, messageTone, scanDatas, audits, activeIndex } = workflow;
   const setMessage = (text, tone = 'info') => dispatch({ type: 'message', message: text, tone });
@@ -279,7 +341,9 @@ function App() {
               : auditLabel({
                   ...data,
                   labelFamily,
-                  labelFormat
+                  labelFormat,
+                  merchantProfile,
+                  locationMasterFile: locationMasterFile?.parsed || null
                 });
           appendScanDebug(
             `${fileDebugPrefix} - ${labelFamily === 'reader' ? 'listed decoded barcodes' : 'ran audit rules'} for ${itemLabel}`,
@@ -310,6 +374,34 @@ function App() {
     } finally {
       dispatch({ type: 'processing-finished' });
     }
+  }
+
+  /** Re-runs the rules over the labels already scanned, so a profile or Location Master
+   *  File change applies to the current report without rescanning. */
+  function recheckCurrentReport() {
+    if (!scanDatas.length) return;
+    const next = scanDatas.map((data, i) => {
+      const previous = audits[i] || {};
+      if (data.labelFamily === 'reader') return previous;
+      const audit = auditLabel({
+        ...data,
+        merchantProfile,
+        locationMasterFile: locationMasterFile?.parsed || null
+      });
+      return {
+        ...audit,
+        labelImages: data.labelImages || {},
+        extractedText: data.extractedText || '',
+        scanDiagnostics: data.scanDiagnostics || [],
+        batchIndex: previous.batchIndex,
+        sourceFileIndex: previous.sourceFileIndex,
+        sourcePageIndex: previous.sourcePageIndex,
+        labelFamily: data.labelFamily,
+        labelFormat: data.labelFormat
+      };
+    });
+    dispatch({ type: 'replace-audits', audits: next, message: 'Report re-checked with the current merchant profile.' });
+    setShowUploader(false);
   }
 
   // Rendered inline on the landing view and inside the "new audit" overlay on the report
@@ -370,6 +462,20 @@ function App() {
             <span className="reader-mode-desc">Lists every barcode with its raw value — no validation rules</span>
           </button>
         </div>
+        {selectedCarrier !== 'reader' && (
+          <MerchantProfilePanel
+            profile={merchantProfile}
+            onChange={updateMerchantProfile}
+            lmf={locationMasterFile}
+            lmfError={lmfError}
+            onLoadLmf={loadLocationMasterFile}
+            onRemoveLmf={removeLocationMasterFile}
+            onClear={() => updateMerchantProfile({})}
+            onRecheck={recheckCurrentReport}
+            canRecheck={audits.some(a => a.carrier !== 'reader')}
+            disabled={processing}
+          />
+        )}
         {auditModeReady ? (
           <label
             className={`dropzone dropzone-${selectedCarrier} ${processing ? 'dropzone-disabled' : ''}`}
@@ -689,6 +795,19 @@ function App() {
                         <span className="meta-k">File</span>
                         <span className="meta-v">{h.displayFile || h.filename}</span>
                       </span>
+                      {(activeAudit.merchantProfileActive || activeAudit.locationMasterFileLoaded) && (
+                        <span>
+                          <span className="meta-k">Checked against</span>
+                          <span className="meta-v">
+                            {[
+                              activeAudit.merchantProfileActive ? 'merchant profile' : '',
+                              activeAudit.locationMasterFileLoaded ? 'Location Master File' : ''
+                            ]
+                              .filter(Boolean)
+                              .join(' and ')}
+                          </span>
+                        </span>
+                      )}
                     </div>
                     {/* Input-quality gauge: poor input is the most common cause of weak
                         audit results, so it is surfaced before any findings. */}

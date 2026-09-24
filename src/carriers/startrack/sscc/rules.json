@@ -79,6 +79,41 @@
       }
     },
     {
+      "id": "ST-MER-04",
+      "title": "SSCC is in the merchant's range",
+      "description": "The SSCC must sit inside a StarTrack SSCC range from the merchant profile. Runs only when ranges are entered.",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-sscc",
+      "source": { "doc": "MOS v9", "page": 13 },
+      "when": { "path": "profile.startrackSscc", "op": "notEmpty" },
+      "forEach": "barcodes.sscc.valid",
+      "input": "item",
+      "assert": {
+        "op": "fn",
+        "name": "ssccInProfileRange",
+        "args": { "ranges": [{ "path": "profile.startrackSscc", "name": "StarTrack SSCC range" }] }
+      }
+    },
+    {
+      "id": "ST-SSC-10",
+      "title": "SSCC uses a GS1 Australia prefix",
+      "description": "Australian merchants' SSCCs usually start with a GS1 Australia prefix (93). Another prefix is allowed, so this is a note. Skipped when the profile has SSCC ranges.",
+      "obligation": "advisory",
+      "severity": "INFO",
+      "category": "startrack-sscc",
+      "source": { "doc": "MOS v9", "page": 13 },
+      "when": { "path": "profile.startrackSscc", "op": "empty" },
+      "forEach": "barcodes.sscc.valid",
+      "input": "item.sscc",
+      "assert": { "op": "matches", "value": "^\\d({{gs1AustraliaPrefixes}})" },
+      "failStatus": "info",
+      "messages": {
+        "pass": "SSCC {actual} uses a GS1 Australia company prefix.",
+        "fail": "SSCC {actual} doesn't use a GS1 Australia prefix (93). That's allowed, but confirm it's the merchant's registered prefix."
+      }
+    },
+    {
       "id": "ST-SSC-06",
       "title": "SSCC labels are despatch movements only",
       "description": "SSCC barcodes may only be used for despatch movements, never for controlled returns or transfers.",

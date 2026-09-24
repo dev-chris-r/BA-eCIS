@@ -1,0 +1,42 @@
+{
+  "_about": "Reference values the auditor checks barcode data against. Edit by hand, then run npm run build. Checks that use this file only warn or add a note, so a missing entry never fails a label.",
+  "postcodeStates": {
+    "_about": "Postcode ranges for each state, written start-end. A postcode printed with a state outside its range raises a warning.",
+    "values": {
+      "ACT": ["0200-0299", "2600-2618", "2900-2920"],
+      "NSW": ["1000-1999", "2000-2599", "2619-2899", "2921-2999"],
+      "NT": ["0800-0999"],
+      "QLD": ["4000-4999", "9000-9999"],
+      "SA": ["5000-5999"],
+      "TAS": ["7000-7999"],
+      "VIC": ["3000-3999", "8000-8999"],
+      "WA": ["6000-6999"]
+    }
+  },
+  "sharedPostcodes": {
+    "_about": "Postcodes used on both sides of a state border. Add any others you come across.",
+    "values": {
+      "0872": ["NT", "SA", "WA"],
+      "2540": ["NSW", "ACT"],
+      "2611": ["ACT", "NSW"],
+      "2618": ["ACT", "NSW"],
+      "2620": ["NSW", "ACT"],
+      "3585": ["VIC", "NSW"],
+      "3644": ["VIC", "NSW"],
+      "3691": ["VIC", "NSW"],
+      "3707": ["VIC", "NSW"],
+      "4377": ["QLD", "NSW"],
+      "4380": ["QLD", "NSW"],
+      "4383": ["QLD", "NSW"],
+      "4825": ["QLD", "NT"]
+    }
+  },
+  "testMlids": {
+    "_about": "Australia Post's test MLIDs, from Parcel Post and Express Post v1.4 page 6. Fine on test labels, never on production labels.",
+    "values": ["JDQ", "1JDQ1"]
+  },
+  "gs1AustraliaPrefixes": {
+    "_about": "GS1 Australia company prefixes start 930 to 939. An SSCC with another prefix is allowed, but unusual for an Australian merchant.",
+    "values": ["930", "931", "932", "933", "934", "935", "936", "937", "938", "939"]
+  }
+}

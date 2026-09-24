@@ -65,6 +65,58 @@
       }
     },
     {
+      "id": "EP-MER-02",
+      "title": "SSCC is in the merchant's reserved range",
+      "description": "The SSCC must sit inside a range from the merchant profile, and in the range for the printed product. Runs only when SSCC ranges are entered.",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "sscc",
+      "source": { "doc": "PP&EP v1.4", "page": 26 },
+      "when": {
+        "any": [
+          { "path": "profile.eparcelSsccParcelPost", "op": "notEmpty" },
+          { "path": "profile.eparcelSsccExpressPost", "op": "notEmpty" }
+        ]
+      },
+      "forEach": "barcodes.sscc.valid",
+      "input": "item",
+      "evidence": ["text.labelType"],
+      "assert": {
+        "op": "fn",
+        "name": "ssccInProfileRange",
+        "args": {
+          "ranges": [
+            { "path": "profile.eparcelSsccParcelPost", "name": "Parcel Post range", "product": "Parcel Post" },
+            { "path": "profile.eparcelSsccExpressPost", "name": "Express Post range", "product": "Express Post" }
+          ],
+          "productPath": "text.labelType"
+        }
+      }
+    },
+    {
+      "id": "EP-SS-10",
+      "title": "SSCC uses a GS1 Australia prefix",
+      "description": "Australian merchants' SSCCs usually start with a GS1 Australia prefix (93). Another prefix is allowed, so this is a note. Skipped when the profile has SSCC ranges.",
+      "obligation": "advisory",
+      "severity": "INFO",
+      "category": "sscc",
+      "source": { "doc": "PP&EP v1.4", "page": 26 },
+      "when": {
+        "all": [
+          { "path": "profile.eparcelSsccParcelPost", "op": "empty" },
+          { "path": "profile.eparcelSsccExpressPost", "op": "empty" }
+        ]
+      },
+      "forEach": "barcodes.sscc.valid",
+      "input": "item.sscc",
+      "assert": { "op": "matches", "value": "^\\d({{gs1AustraliaPrefixes}})" },
+      "failStatus": "info",
+      "messages": {
+        "pass": "SSCC {actual} uses a GS1 Australia company prefix.",
+        "fail": "SSCC {actual} doesn't use a GS1 Australia prefix (93). That's allowed, but confirm it's the merchant's registered prefix."
+      }
+    },
+    {
       "id": "EP-SS-03",
       "title": "DataMatrix repeats the linear SSCC",
       "description": "The GS1 DataMatrix must carry the same AI 00 SSCC as the linear barcode in its AI 91 article position. A DataMatrix with a different or missing SSCC breaks the label's article identity.",

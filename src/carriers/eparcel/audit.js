@@ -11,7 +11,10 @@ import {
   validateSelectedAuditMode
 } from '../shared/audit.js';
 import { addressState, lastAddressLine } from '../shared/text.js';
+import { parseSuburbLine } from '../shared/reference.js';
+import { normalizeMerchantProfile } from '../shared/merchantProfile.js';
 import { gs1LinearComplianceEvidence, parseSsccBarcode } from '../formats/gs1.js';
+import { metroLocation } from './metro/area.js';
 import { extractLabelFacts } from './facts.js';
 import { calculateEparcelCheckDigit, parseEparcelBarcode } from './formats/article.js';
 import { dataMatrixComplianceEvidence, looksLikeDataMatrix, parseGs1DataMatrix } from './formats/dataMatrix.js';
@@ -214,6 +217,57 @@ registerRuleFunction('linearDmAgreement', derived => {
   };
 });
 
+// Metro only delivers to listed localities in five cities (Metro V2.0 page 7). The
+// delivery location comes from the barcode postcode plus the printed suburb.
+registerRuleFunction('metroInArea', loc => {
+  if (!loc?.inArea) {
+    return {
+      pass: false,
+      expected: 'a Metro locality',
+      actual: `${loc?.suburb ? `${loc.suburb} ` : ''}${loc?.postcode || 'unknown'}`,
+      message: `Delivery postcode ${loc?.postcode} is outside the Metro area. Metro only delivers to listed localities in Adelaide, Brisbane, Melbourne, Perth and Sydney.`
+    };
+  }
+  if (loc.suburbListed === false) {
+    return {
+      pass: false,
+      expected: `a listed ${loc.cityName} Metro locality`,
+      actual: `${loc.suburb} ${loc.postcode}`,
+      message: `${loc.suburb} isn't a listed Metro locality for postcode ${loc.postcode}, so it may be outside the Metro area. Listed localities include ${loc.listedSuburbs.join(', ')}.`
+    };
+  }
+  return {
+    pass: true,
+    actual: `${loc.suburb ? `${loc.suburb} ` : ''}${loc.postcode}`,
+    message:
+      loc.suburbListed === null
+        ? `Postcode ${loc.postcode} is in the ${loc.cityName} Metro area. The suburb wasn't read, so confirm it's a listed locality.`
+        : `${loc.suburb} ${loc.postcode} is in the ${loc.cityName} Metro area.`
+  };
+});
+
+// Metro is a same-city service: pickup and delivery must be in the same Metro city.
+registerRuleFunction('metroSameCity', route => {
+  const { delivery, sender } = route || {};
+  if (!sender?.inArea) {
+    return {
+      pass: false,
+      expected: 'a sender inside a Metro city',
+      actual: `sender postcode ${sender?.postcode}`,
+      message: `Sender postcode ${sender?.postcode} is outside the Metro area. Metro parcels are picked up and delivered within one city. Check the lodgement site if the sender address differs.`
+    };
+  }
+  if (delivery?.inArea && delivery.city !== sender.city) {
+    return {
+      pass: false,
+      expected: `delivery in ${sender.cityName}`,
+      actual: `sender ${sender.cityName}, delivery ${delivery.cityName}`,
+      message: `The sender is in ${sender.cityName} but the delivery is in ${delivery.cityName}. Metro only runs within one city.`
+    };
+  }
+  return { pass: true, message: `Sender and delivery are both in the ${sender.cityName} Metro area.` };
+});
+
 // Assembles the evidence context (page, text, barcodes, derived values) that the
 // declarative rule set evaluates against.
 function buildEparcelRuleContext({
@@ -228,7 +282,8 @@ function buildEparcelRuleContext({
   invalidSsccs,
   decodedLinear,
   decodedDm,
-  visualEvidence
+  visualEvidence,
+  profile
 }) {
   const linearParses = parsed.filter(p => p.hasAi01 !== undefined);
   const gs1Items = [
@@ -252,6 +307,13 @@ function buildEparcelRuleContext({
   const postcodes4 = [
     ...new Set([...(facts.postcodeLines || []), ...toBlock].flatMap(line => String(line).match(/\b\d{4}\b/g) || []))
   ];
+  // Metro area evidence: the barcode's AI 420 postcode is the delivery truth; the printed
+  // suburb narrows it to a locality. The sender side comes from the FROM block only.
+  const toLine = parseSuburbLine(lastAddressLine(toBlock));
+  const fromLine = parseSuburbLine(lastAddressLine(fromBlock));
+  const deliveryPostcode = dmParses.find(p => p.postcode)?.postcode || toLine?.postcode || null;
+  const metroDelivery = deliveryPostcode ? metroLocation(deliveryPostcode, toLine?.suburb) : null;
+  const metroSender = fromLine ? metroLocation(fromLine.postcode, fromLine.suburb) : null;
   return {
     page: buildPageContext(fileInfo),
     text: {
@@ -280,8 +342,11 @@ function buildEparcelRuleContext({
       dmArticleIds: dmParses.map(p => p.base?.article?.articleId).filter(Boolean),
       linearSsccIds: validSsccs.map(s => s.articleId).filter(Boolean),
       invalidArticleReasons: invalidAnalyses.map(a => `${a.candidate}: ${a.reason}`).join('\n'),
-      invalidSsccReasons: invalidSsccs.map(s => s.reason).join('\n')
+      invalidSsccReasons: invalidSsccs.map(s => s.reason).join('\n'),
+      metroDelivery,
+      metroRoute: metroDelivery && metroSender ? { delivery: metroDelivery, sender: metroSender } : null
     },
+    profile,
     selected: { carrier: 'eparcel', format: selectedFormat }
   };
 }
@@ -310,10 +375,12 @@ export function auditEparcelLabel({
   manualBarcodes = '',
   extractedText = '',
   visualEvidence = null,
-  labelFormat = 'standard'
+  labelFormat = 'standard',
+  merchantProfile = null
 }) {
   const validations = [];
   const selectedFormat = normalizeLabelFormat(labelFormat);
+  const profile = normalizeMerchantProfile(merchantProfile || {});
   const facts = extractLabelFacts(extractedText);
   const manualValues = diagnosticManualValues(manualBarcodes);
   const decodedValues = decodedRawValues(detectedBarcodes);
@@ -421,7 +488,8 @@ export function auditEparcelLabel({
     invalidSsccs,
     decodedLinear,
     decodedDm,
-    visualEvidence
+    visualEvidence,
+    profile
   });
   const ruleVariant = selectEparcelVariant(selectedFormat, articles, facts);
   const ruleSet = ruleSetFor(ruleVariant);
@@ -438,6 +506,7 @@ export function auditEparcelLabel({
     detectedBarcodes,
     manualBarcodeCount: manualValues.length,
     selectedAuditMode: { carrier: 'eparcel', labelFormat: selectedFormat },
+    merchantProfileActive: profile.active,
     ruleSet: { id: ruleSet.id, name: ruleSet.name, variant: ruleVariant, spec: ruleSet.spec || null },
     parsed,
     articles,

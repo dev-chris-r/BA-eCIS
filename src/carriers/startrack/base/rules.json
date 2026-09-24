@@ -15,7 +15,8 @@
       "date": "2020-10-14"
     },
     "StarTrack business rule": { "title": "StarTrack business rule" },
-    "Auditor rule": { "title": "Auditor built-in rule" }
+    "Auditor rule": { "title": "Auditor built-in rule" },
+    "Merchant profile": { "title": "Merchant profile entered in the auditor" }
   },
   "rules": [
     {
@@ -119,6 +120,19 @@
         "pass": "Sender details text was extracted.",
         "missing": "Sender details could not be isolated from text."
       }
+    },
+    {
+      "id": "ST-ADR-01",
+      "title": "Printed postcodes match their states",
+      "description": "Each printed suburb line's postcode must belong to its state. Border towns that share a postcode are listed in reference-values.json.",
+      "obligation": "advisory",
+      "severity": "WARNING",
+      "category": "startrack-text",
+      "source": { "doc": "MOS v9", "ref": "1.006" },
+      "when": { "path": "text.postcodeLines", "op": "notEmpty" },
+      "input": "text.postcodeLines",
+      "assert": { "op": "fn", "name": "postcodesMatchStates" },
+      "failStatus": "warning"
     },
     {
       "id": "ST-ITM-04",
@@ -259,6 +273,23 @@
       "messages": {
         "pass": "Despatch ID {actual} is correctly structured (3rd character alphabetic, 4th character Z).",
         "fail": "Despatch ID {actual} is malformed. The 3rd character must be A-Z and the 4th must be Z."
+      }
+    },
+    {
+      "id": "ST-MER-01",
+      "title": "Despatch ID belongs to this merchant",
+      "description": "Every despatch ID on the label, in the freight barcode and the QR connote, must be one the merchant profile lists. Runs only when a profile is entered.",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-freight",
+      "source": { "doc": "Merchant profile", "ref": "despatch IDs" },
+      "when": { "path": "profile.despatchIds", "op": "notEmpty" },
+      "forEach": "derived.despatchIds",
+      "input": "item",
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "profile.despatchIds", "normalize": ["stripSpaces", "upper"] } },
+      "messages": {
+        "pass": "Despatch ID {actual} is in the merchant profile.",
+        "fail": "Despatch ID {actual} isn't in the merchant profile ({expected}). StarTrack issues despatch IDs per customer site, so check this label uses the merchant's own."
       }
     },
     {
@@ -449,15 +480,58 @@
     {
       "id": "ST-RTE-05",
       "title": "Depot/port requires manual validation",
-      "description": "Depot and primary/secondary port codes are issued from StarTrack's Location Master File, which has no digital lookup, so their validity cannot be confirmed by this audit. Every decoded routing barcode is therefore held at manual review: confirm the depot and port codes with StarTrack before relying on the routing.",
+      "description": "Depot and port codes come from StarTrack's Location Master File. Without that file loaded, each routing barcode is held for manual review. Load it in the merchant profile panel to check them automatically.",
       "obligation": "mandatory",
       "severity": "INFO",
       "category": "startrack-routing",
-      "source": { "doc": "StarTrack business rule", "ref": "Location Master File has no digital source" },
+      "source": { "doc": "StarTrack business rule", "ref": "Location Master File not loaded" },
+      "when": { "path": "derived.lmfValidated", "op": "notEquals", "value": true },
       "forEach": "barcodes.routing",
       "input": "item",
       "evidence": ["item.raw"],
       "assert": { "op": "fn", "name": "routingDepotManualReview" }
+    },
+    {
+      "id": "ST-LMF-01",
+      "title": "Delivery location is in the Location Master File",
+      "description": "StarTrack delivers only to suburbs and postcodes in its Location Master File. Runs only when the file is loaded.",
+      "obligation": "mandatory",
+      "severity": "WARNING",
+      "category": "startrack-routing",
+      "source": { "doc": "MOS v9", "page": 8 },
+      "when": { "path": "derived.lmf.loaded", "op": "equals", "value": true },
+      "input": "derived.lmf",
+      "assert": { "op": "fn", "name": "lmfLocationFound" },
+      "failStatus": "warning"
+    },
+    {
+      "id": "ST-LMF-02",
+      "title": "Routing depot matches the Location Master File",
+      "description": "The routing barcode's depot must be the file's Nearest Depot for Express and Special Services, or its Primary Port for Premium products.",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-routing",
+      "source": { "doc": "MOS v9", "page": 14 },
+      "when": { "path": "derived.lmfValidated", "op": "equals", "value": true },
+      "forEach": "barcodes.routing",
+      "itemWhen": { "path": "item.type", "op": "equals", "value": "startrack-routing" },
+      "input": "item",
+      "evidence": ["item.raw"],
+      "assert": { "op": "fn", "name": "lmfRoutingDepot" }
+    },
+    {
+      "id": "ST-LMF-03",
+      "title": "QR destination depot matches the Location Master File",
+      "description": "QR field 15 must be the file's Nearest Depot for Express and Special Services, or its Secondary Port for Premium products.",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-qr",
+      "source": { "doc": "MOS v9", "page": 17 },
+      "when": { "path": "derived.lmfValidated", "op": "equals", "value": true },
+      "forEach": "barcodes.qr",
+      "input": "item.fields.destinationDepot",
+      "onMissing": "skip",
+      "assert": { "op": "fn", "name": "lmfQrDepot" }
     },
     {
       "id": "ST-QR-MAND",
@@ -615,6 +689,43 @@
         "pass": "Sender account is populated for this despatch movement: {actual}.",
         "fail": "Movement type indicates a despatch, but the sender account field is blank.",
         "missing": "Movement type indicates a despatch, but the sender account field is blank."
+      }
+    },
+    {
+      "id": "ST-MER-02",
+      "title": "Sender account belongs to this merchant",
+      "description": "The QR sender account must be one of the merchant's StarTrack accounts. Runs only when a profile is entered.",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-qr",
+      "source": { "doc": "Merchant profile", "ref": "StarTrack accounts" },
+      "when": { "path": "profile.startrackAccounts", "op": "notEmpty" },
+      "forEach": "barcodes.qr",
+      "itemWhen": { "path": "item.fields.senderAccount", "op": "present" },
+      "input": "item.fields.senderAccount",
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "profile.startrackAccounts", "normalize": ["digitsOnly"] } },
+      "messages": {
+        "pass": "Sender account {actual} is in the merchant profile.",
+        "fail": "Sender account {actual} isn't one of the merchant's StarTrack accounts ({expected})."
+      }
+    },
+    {
+      "id": "ST-MER-03",
+      "title": "Payer account is known",
+      "description": "A payer account outside the merchant profile is allowed when a third party pays, so it's flagged for review rather than failed.",
+      "obligation": "conditional",
+      "severity": "WARNING",
+      "category": "startrack-qr",
+      "source": { "doc": "MOS v9", "page": 16 },
+      "when": { "path": "profile.startrackAccounts", "op": "notEmpty" },
+      "forEach": "barcodes.qr",
+      "itemWhen": { "path": "item.fields.payerAccount", "op": "present" },
+      "input": "item.fields.payerAccount",
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "profile.startrackAccounts", "normalize": ["digitsOnly"] } },
+      "failStatus": "manual_review",
+      "messages": {
+        "pass": "Payer account {actual} is in the merchant profile.",
+        "fail": "Payer account {actual} isn't one of the merchant's accounts. That's fine if a third party pays, so confirm who pays."
       }
     },
     {

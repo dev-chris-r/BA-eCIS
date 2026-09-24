@@ -2,6 +2,8 @@
 // the validation-row shape, audit-mode checks, decoded-value helpers, the
 // overall summary, page geometry, and the carrier-agnostic rule functions.
 import { applyNormalize, registerRuleFunction, resolvePath } from '../../ruleEngine.js';
+import { parseSuburbLine, postcodeAllowsState, statesForPostcode } from './reference.js';
+import { ssccInRange } from './merchantProfile.js';
 
 /** Creates one normalized validation row consumed by both the React UI and exported HTML. */
 export function result(id, title, severity, category, status, message, extra = {}) {
@@ -191,6 +193,79 @@ registerRuleFunction('inPathList', (value, { context, item, args }) => {
   }
   const needle = applyNormalize(value, args?.normalize);
   return { pass: list.includes(needle), expected: list.join(', '), actual: needle || 'missing' };
+});
+
+// Every printed "SUBURB STATE 1234" line must pair a postcode with a state its range
+// allows (reference-values.json). A mismatch only warns: border towns share postcodes,
+// and the shared list is hand-maintained.
+registerRuleFunction('postcodesMatchStates', lines => {
+  const parsed = (Array.isArray(lines) ? lines : []).map(parseSuburbLine).filter(Boolean);
+  const mismatches = parsed.filter(p => postcodeAllowsState(p.postcode, p.state) === false);
+  if (!mismatches.length) {
+    return {
+      pass: true,
+      actual: parsed.map(p => p.line).join(' | '),
+      message: 'Every printed postcode matches its state.'
+    };
+  }
+  const describe = p => `${p.line}: ${p.postcode} is a ${statesForPostcode(p.postcode).join(' or ')} postcode`;
+  return {
+    pass: false,
+    expected: 'each postcode inside its state',
+    actual: mismatches.map(describe).join(' | '),
+    message: `${mismatches.map(describe).join('. ')}. Check the state and postcode on the label.`
+  };
+});
+
+// A barcode postcode must belong to the state printed in the delivery address.
+registerRuleFunction('postcodeInState', (postcode, { context, item, args }) => {
+  const state = String(resolvePath(args?.statePath, context, item) || '').toUpperCase();
+  const allowed = postcodeAllowsState(postcode, state);
+  if (allowed === null)
+    return { pass: true, message: 'The postcode or state could not be read, so they were not compared.' };
+  const states = statesForPostcode(postcode).join(' or ');
+  return {
+    pass: allowed,
+    expected: `a ${state} postcode`,
+    actual: `${postcode} (${states})`,
+    message: allowed
+      ? `Barcode postcode ${postcode} is a ${state} postcode, matching the delivery address.`
+      : `Barcode postcode ${postcode} is a ${states} postcode, but the delivery address is in ${state}. Check the barcode carries the delivery postcode, not the sender's.`
+  };
+});
+
+// An SSCC must fall inside a range the merchant profile lists. When the label's printed
+// product is known (eParcel Parcel Post vs Express Post), the matching range must be for
+// that product - the spec reserves a separate SSCC prefix for each.
+registerRuleFunction('ssccInProfileRange', (sscc, { context, args }) => {
+  const digits = String(sscc?.sscc || sscc || '').replace(/\D/g, '');
+  const lists = (args?.ranges || []).map(r => ({ ...r, ranges: resolvePath(r.path, context) || [] }));
+  const hits = lists.filter(l => l.ranges.some(range => ssccInRange(digits, range)));
+  const all = lists.flatMap(l => l.ranges.map(r => r.label)).join(', ');
+  if (!hits.length) {
+    return {
+      pass: false,
+      expected: `inside ${all}`,
+      actual: digits,
+      message: `SSCC ${digits} isn't in the merchant profile's SSCC ranges (${all}). Check the label uses this merchant's reserved range.`
+    };
+  }
+  const printed = String(resolvePath(args?.productPath, context) || '');
+  const printedProduct = /express/i.test(printed) ? 'Express Post' : /parcel/i.test(printed) ? 'Parcel Post' : null;
+  if (printedProduct && hits.every(h => h.product && h.product !== printedProduct)) {
+    return {
+      pass: false,
+      expected: `a ${printedProduct} range`,
+      actual: `${digits} is in the ${hits.map(h => h.product).join(' / ')} range`,
+      message: `This is a ${printedProduct} label, but SSCC ${digits} is in the ${hits.map(h => h.product).join(' / ')} range. Each product needs its own reserved SSCC range.`
+    };
+  }
+  return {
+    pass: true,
+    expected: `inside ${all}`,
+    actual: digits,
+    message: `SSCC ${digits} is inside the merchant's ${hits.map(h => h.name).join(' / ')}.`
+  };
 });
 
 // Raster uploads carry no physical size: DPI is estimated against the standard

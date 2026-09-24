@@ -16,7 +16,8 @@
       "date": "2025-06-05"
     },
     "GS1 DataMatrix Guideline": { "title": "GS1 DataMatrix Guideline" },
-    "Auditor rule": { "title": "Auditor built-in rule" }
+    "Auditor rule": { "title": "Auditor built-in rule" },
+    "Merchant profile": { "title": "Merchant profile entered in the auditor" }
   },
   "rules": [
     {
@@ -152,6 +153,19 @@
         "pass": "Sender suburb, state and postcode line is correctly formatted: {actual}.",
         "fail": "Sender suburb/state/postcode line should be on one line, fully capitalised, with no commas. Text extraction is heuristic, so check the label manually. Found: {actual}."
       }
+    },
+    {
+      "id": "EP-ADR-01",
+      "title": "Printed postcodes match their states",
+      "description": "Each printed suburb line's postcode must belong to its state. Border towns that share a postcode are listed in reference-values.json.",
+      "obligation": "advisory",
+      "severity": "WARNING",
+      "category": "address-format",
+      "source": { "doc": "PP&EP v1.4", "page": 14 },
+      "when": { "path": "text.postcodeLines", "op": "notEmpty" },
+      "input": "text.postcodeLines",
+      "assert": { "op": "fn", "name": "postcodesMatchStates" },
+      "failStatus": "warning"
     },
     {
       "id": "EP-LIN-01",
@@ -293,6 +307,42 @@
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.mlid",
       "assert": { "op": "matches", "value": "^[A-Z0-9]{3}$|^[A-Z0-9]{5}$" }
+    },
+    {
+      "id": "EP-ART-09",
+      "title": "Not a test MLID",
+      "description": "JDQ and 1JDQ1 are Australia Post's test MLIDs. They're fine on test labels, but production labels need the merchant's own MLID.",
+      "obligation": "advisory",
+      "severity": "INFO",
+      "category": "barcode-structure",
+      "source": { "doc": "PP&EP v1.4", "page": 6 },
+      "forEach": "articles",
+      "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
+      "input": "item.mlid",
+      "assert": { "op": "notIn", "value": "$constants.testMlids" },
+      "failStatus": "info",
+      "messages": {
+        "pass": "MLID {actual} isn't a test MLID.",
+        "fail": "MLID {actual} is Australia Post's test MLID. That's fine on a test label, but production labels need the merchant's own MLID."
+      }
+    },
+    {
+      "id": "EP-MER-01",
+      "title": "MLID belongs to this merchant",
+      "description": "The MLID in the barcode must be one the merchant profile lists. Runs only when a profile is entered.",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "barcode-structure",
+      "source": { "doc": "Merchant profile", "ref": "MLIDs" },
+      "when": { "path": "profile.mlids", "op": "notEmpty" },
+      "forEach": "articles",
+      "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
+      "input": "item.mlid",
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "profile.mlids", "normalize": ["stripSpaces", "upper"] } },
+      "messages": {
+        "pass": "MLID {actual} is in the merchant profile.",
+        "fail": "MLID {actual} isn't in the merchant profile ({expected}). Check the label uses this merchant's MLID."
+      }
     },
     {
       "id": "EP-ART-03",
@@ -557,6 +607,22 @@
       "input": "item.postcode",
       "evidence": ["text.postcodeLines"],
       "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.postcodes4" } }
+    },
+    {
+      "id": "EP-TO-09",
+      "title": "Barcode postcode is in the delivery state",
+      "description": "The AI 420 postcode must belong to the state printed in the TO address. A postcode from another state usually means the sender's postcode was encoded.",
+      "obligation": "mandatory",
+      "severity": "WARNING",
+      "category": "datamatrix",
+      "source": { "doc": "PP&EP v1.4", "page": 19 },
+      "when": { "path": "text.toState", "op": "notEmpty" },
+      "forEach": "barcodes.datamatrix",
+      "itemWhen": { "path": "item.postcode", "op": "present" },
+      "input": "item.postcode",
+      "evidence": ["text.toLastLine"],
+      "assert": { "op": "fn", "name": "postcodeInState", "args": { "statePath": "text.toState" } },
+      "failStatus": "warning"
     },
     {
       "id": "EP-DM-06",

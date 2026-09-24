@@ -11,7 +11,9 @@ import {
   validateSelectedAuditMode
 } from '../shared/audit.js';
 import { uniqueNonEmpty } from '../shared/text.js';
+import { normalizeMerchantProfile } from '../shared/merchantProfile.js';
 import { gs1LinearComplianceEvidence, parseSsccBarcode } from '../formats/gs1.js';
+import { findLocation } from './formats/locationMasterFile.js';
 import { enrichStarTrackFactsFromDecodedData, extractStarTrackFacts } from './facts.js';
 import { parseStarTrackFreightItemBarcode } from './formats/freightItem.js';
 import { parseStarTrackRoutingBarcode } from './formats/routing.js';
@@ -48,13 +50,99 @@ registerRuleFunction('receiverLocationCodesShown', (codes, { context }) => {
   const missing = tokens.filter(token => !new RegExp(`\\b${token}\\b`).test(upper));
   const expected = `RC=${codes?.rc || '?'}, R1=${codes?.r1 || 'blank'}, R2=${codes?.r2 || 'blank'}`;
   const pass = tokens.length > 0 && missing.length === 0;
+  const fromLmf = codes?.source === 'lmf';
   return {
     pass,
     expected,
     actual: pass ? `found in label text: ${tokens.join(' ')}` : `not found in extracted text: ${missing.join(', ')}`,
     message: pass
-      ? `Receiver location codes found in the label text and consistent with the decoded routing/QR data (${expected}). Location Master File validity cannot be checked digitally.`
-      : `Expected receiver location code(s) ${missing.join(', ')} - derived from the decoded routing barcode depot/port and QR destination depot - were not found in the extracted label text. Confirm the RC/R1/R2 line next to the routing barcode on the preview.`
+      ? fromLmf
+        ? `The label prints ${expected}, matching the Location Master File.`
+        : `The label prints ${expected}, matching the barcodes. Load the Location Master File to confirm the depot and ports themselves.`
+      : `The label should print ${missing.join(', ')} (${fromLmf ? 'from the Location Master File' : 'from the routing and QR barcodes'}), but they weren't found in the label text. Check the RC/R1/R2 line beside the routing barcode.`
+  };
+});
+
+// The Location Master File is StarTrack's list of delivery locations (MOS v9 page 8).
+// A delivery suburb and postcode missing from it may not be serviced, so it warns.
+registerRuleFunction('lmfLocationFound', lmf => {
+  const where = `${lmf?.suburb ? `${lmf.suburb} ` : ''}${lmf?.postcode || ''}`.trim();
+  if (lmf?.match) {
+    return {
+      pass: true,
+      actual: where,
+      message: `${where} is a StarTrack delivery location in the Location Master File.`
+    };
+  }
+  if (!lmf?.candidateCount) {
+    return {
+      pass: false,
+      expected: 'a postcode listed in the Location Master File',
+      actual: where || 'no postcode decoded',
+      message: `Postcode ${lmf?.postcode || 'unknown'} isn't in the Location Master File, so StarTrack may not deliver there. Check the postcode, and that the file matches this merchant's despatch site.`
+    };
+  }
+  if (!lmf.suburb) {
+    return {
+      pass: false,
+      status: 'manual_review',
+      actual: where,
+      message: `Postcode ${lmf.postcode} is in the Location Master File, but no suburb was decoded, so the exact location couldn't be matched.`
+    };
+  }
+  return {
+    pass: false,
+    expected: `a suburb listed for ${lmf.postcode}`,
+    actual: where,
+    message: `${lmf.suburb} isn't listed for postcode ${lmf.postcode} in the Location Master File. Listed suburbs include ${lmf.candidateSuburbs.join(', ')}. Check the spelling.`
+  };
+});
+
+/** Which LMF column a depot value must come from: Premium uses ports, Express and
+ *  Special Services use the Nearest Depot (MOS v9 1.009, 1.010, QR field 15). */
+function lmfExpectation(lmf, kind) {
+  if (!lmf?.match) return null;
+  if (kind === 'routing') {
+    return lmf.premium
+      ? { value: lmf.match.primaryPort, column: 'Primary Port' }
+      : { value: lmf.match.nearestDepot, column: 'Nearest Depot' };
+  }
+  return lmf.premium
+    ? { value: lmf.match.secondaryPort, column: 'Secondary Port' }
+    : { value: lmf.match.nearestDepot, column: 'Nearest Depot' };
+}
+
+registerRuleFunction('lmfRoutingDepot', (route, { context }) => {
+  const lmf = resolvePath('derived.lmf', context);
+  const want = lmfExpectation(lmf, 'routing');
+  const got = String(route?.depotOrPort || '').toUpperCase();
+  const where = `${lmf.match.suburb} ${lmf.match.postcode}`;
+  const pass = got === want.value;
+  return {
+    pass,
+    expected: want.value,
+    actual: got,
+    message: pass
+      ? `Routing depot ${got} matches the Location Master File ${want.column} for ${where}.`
+      : `Routing depot ${got} should be ${want.value}, the Location Master File ${want.column} for ${where}.`
+  };
+});
+
+registerRuleFunction('lmfQrDepot', (depot, { context }) => {
+  const lmf = resolvePath('derived.lmf', context);
+  const want = lmfExpectation(lmf, 'qr');
+  const got = String(depot || '')
+    .trim()
+    .toUpperCase();
+  const where = `${lmf.match.suburb} ${lmf.match.postcode}`;
+  const pass = got === want.value;
+  return {
+    pass,
+    expected: want.value,
+    actual: got || 'blank',
+    message: pass
+      ? `QR destination depot ${got} matches the Location Master File ${want.column} for ${where}.`
+      : `QR destination depot ${got || 'is blank and'} should be ${want.value}, the Location Master File ${want.column} for ${where}.`
   };
 });
 
@@ -70,8 +158,8 @@ registerRuleFunction('routingDepotManualReview', route => {
     expected: 'depot/port confirmed against the StarTrack Location Master File',
     actual: depot || 'no depot segment (GS1 421 routing form)',
     message: depot
-      ? `Routing barcode decoded with depot/port ${depot}. Depot and port codes require manual validation against StarTrack's Location Master File - they cannot be verified digitally.`
-      : "GS1 421 routing barcode decoded. It carries no depot/port segment, so the sortation destination (the QR destination depot) requires manual validation against StarTrack's Location Master File - it cannot be verified digitally."
+      ? `Depot ${depot} is well-formed, but depots come from StarTrack's Location Master File. Load the file in the merchant profile panel to check it, or confirm it with StarTrack.`
+      : 'This GS1 421 routing barcode has no depot, so the QR destination depot decides the sortation. Load the Location Master File in the merchant profile panel to check it, or confirm it with StarTrack.'
   };
 });
 
@@ -122,7 +210,9 @@ function buildStarTrackRuleContext({
   unclassifiedLinear = [],
   expectedAtlNumbers,
   atlExpected,
-  visualEvidence
+  visualEvidence,
+  profile,
+  locationMasterFile = null
 }) {
   const lines = facts.lines || [];
   const hasStarTrackHeaderText = lines.some(l => /STAR\s*TRACK|STARTRACK/i.test(l));
@@ -146,18 +236,40 @@ function buildStarTrackRuleContext({
     String(qrParses[0]?.fields?.destinationDepot || '')
       .trim()
       .toUpperCase() || null;
+  const premiumGroup =
+    STARTRACK_PRODUCT_CODE_MAP[primaryProductCode]?.group === 'Premium services' ||
+    (!primaryProductCode && ['PRM', 'ARL'].includes((routeWithDepot || routingParses[0])?.labelCode));
+  // Location Master File match for the delivery location: the QR suburb and postcode are
+  // the decoded truth (routing postcode as fallback). NZ (9901) is out of scope here.
+  const lmfPostcode = qrParses[0]?.fields?.receiverPostcode || routingParses[0]?.postcode || '';
+  const lmfSuburb = qrParses[0]?.fields?.receiverSuburb || '';
+  let lmf = { loaded: false };
+  if (locationMasterFile?.byPostcode && lmfPostcode && lmfPostcode !== '9901') {
+    const { candidates, match } = findLocation(locationMasterFile, lmfPostcode, lmfSuburb);
+    lmf = {
+      loaded: true,
+      postcode: lmfPostcode,
+      suburb: lmfSuburb.trim().toUpperCase() || null,
+      match,
+      premium: premiumGroup,
+      candidateCount: candidates.length,
+      candidateSuburbs: candidates.slice(0, 6).map(r => r.suburb)
+    };
+  }
   let receiverLocationCodes = null;
-  if (routeWithDepot) {
-    const premiumGroup =
-      STARTRACK_PRODUCT_CODE_MAP[primaryProductCode]?.group === 'Premium services' ||
-      (!primaryProductCode && ['PRM', 'ARL'].includes(routeWithDepot.labelCode));
+  if (lmf.match) {
+    // With the LMF loaded, the printed codes are checked against its values directly.
+    receiverLocationCodes = premiumGroup
+      ? { rc: 'AU', r1: lmf.match.primaryPort, r2: lmf.match.secondaryPort, source: 'lmf' }
+      : { rc: 'AU', r1: null, r2: lmf.match.nearestDepot, source: 'lmf' };
+  } else if (routeWithDepot) {
     const routeDepot = String(routeWithDepot.depotOrPort).toUpperCase();
     receiverLocationCodes =
       routeWithDepot.postcode === '9901'
-        ? { rc: 'NZ', r1: 'SYD', r2: 'ZNA' }
+        ? { rc: 'NZ', r1: 'SYD', r2: 'ZNA', source: 'barcodes' }
         : premiumGroup
-          ? { rc: 'AU', r1: routeDepot, r2: qrDepot }
-          : { rc: 'AU', r1: null, r2: routeDepot };
+          ? { rc: 'AU', r1: routeDepot, r2: qrDepot, source: 'barcodes' }
+          : { rc: 'AU', r1: null, r2: routeDepot, source: 'barcodes' };
   }
   // Pre-enrichment (print-only) facts back the visible-content checks; the enriched
   // facts remain available for rules where decoded data is a legitimate source.
@@ -201,8 +313,16 @@ function buildStarTrackRuleContext({
       invalidSsccReasons: invalidSsccs.map(s => s.reason).join('\n'),
       // Print-only evidence: the receiver block must actually be printed on the
       // label, so QR-backfilled address data must not satisfy this check.
-      receiverEvidence: [...(visible.toBlock || []), ...(visible.postcodeLines || [])]
+      receiverEvidence: [...(visible.toBlock || []), ...(visible.postcodeLines || [])],
+      // Every despatch ID the label carries: freight item barcodes and QR connotes.
+      despatchIds: uniqueNonEmpty([
+        ...freightParses.map(f => f.despatchId),
+        ...qrParses.map(q => String(q.fields?.connoteNumber || '').slice(0, 4))
+      ]),
+      lmf,
+      lmfValidated: Boolean(lmf.match)
     },
+    profile,
     selected: { carrier: 'startrack', format: selectedFormat }
   };
 }
@@ -250,10 +370,13 @@ export function auditStarTrackLabel({
   manualBarcodes = '',
   extractedText = '',
   visualEvidence = null,
-  labelFormat = 'standard'
+  labelFormat = 'standard',
+  merchantProfile = null,
+  locationMasterFile = null
 }) {
   const validations = [];
   const selectedFormat = normalizeLabelFormat(labelFormat);
+  const profile = normalizeMerchantProfile(merchantProfile || {});
   let facts = extractStarTrackFacts(extractedText);
   const manualValues = diagnosticManualValues(manualBarcodes);
   const decodedValues = decodedRawValues(detectedBarcodes);
@@ -421,7 +544,9 @@ export function auditStarTrackLabel({
     unclassifiedLinear,
     expectedAtlNumbers,
     atlExpected,
-    visualEvidence
+    visualEvidence,
+    profile,
+    locationMasterFile
   });
   const ruleVariant = selectStarTrackVariant(selectedFormat, [
     ...freightParses.map(f => f.productCode),
@@ -445,6 +570,8 @@ export function auditStarTrackLabel({
     detectedBarcodes,
     manualBarcodeCount: manualValues.length,
     selectedAuditMode: { carrier: 'startrack', labelFormat: selectedFormat },
+    merchantProfileActive: profile.active,
+    locationMasterFileLoaded: Boolean(locationMasterFile?.byPostcode),
     ruleSet: { id: ruleSet.id, name: ruleSet.name, variant: ruleVariant, spec: ruleSet.spec || null },
     parsed: [...qrParses, ...freightParses, ...routingParses, ...atlParses, ...validSsccs],
     startrack: { qrParses, freightParses, routingParses, ssccParses: validSsccs, atlParses, ssccOnly },
