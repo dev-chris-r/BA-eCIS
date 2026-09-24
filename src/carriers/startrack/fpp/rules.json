@@ -12,6 +12,7 @@
       "id": "ST-FPP-01",
       "title": "Fixed price services are single-item consignments",
       "description": "Fixed price services with fixed weight limits must have exactly one item per consignment, so the QR consignment quantity must be 1.",
+      "expectedText": "1 item",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "startrack-qr",
@@ -26,7 +27,7 @@
     },
     {
       "id": "ST-FPP-02",
-      "title": "Unit type permitted for fixed price services",
+      "title": "Fixed price unit type",
       "description": "Pallets and skids are not permitted unit types for FPP/FPA products.",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -35,12 +36,15 @@
       "forEach": "barcodes.qr",
       "itemWhen": { "path": "item.fields.unitType", "op": "present" },
       "input": "item.fields.unitType",
-      "assert": { "op": "notIn", "value": ["PAL", "SKI"] }
+      "assert": { "op": "notIn", "value": ["PAL", "SKI"] },
+      "messages": {
+        "fail": "Unit {actual} isn't allowed on fixed price services. Pallets and skids can't be used."
+      }
     },
     {
       "id": "ST-LOC-01",
       "title": "Premium receiver location codes (RC/R1/R2)",
-      "description": "Fixed Price Premium / Fixed Price Airlock are Premium-group products (FPP routes as PRM, FPA as ARL), so the label must print the Premium receiver location codes with the routing barcode (Arial Bold 22pt): RC = 'AU', R1 = Primary Port and R2 = Secondary Port from the Location Master File. The printed codes are cross-checked one way against the decoded routing barcode port and the QR destination depot; Location Master File validity cannot be verified digitally.",
+      "description": "Fixed price labels are Premium, so they print RC AU, R1 the Primary Port and R2 the Secondary Port beside the routing barcode.",
       "obligation": "mandatory",
       "severity": "INFO",
       "category": "startrack-routing",

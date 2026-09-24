@@ -340,24 +340,25 @@ function selectStarTrackVariant(selectedFormat, productCodes) {
 /** Validates StarTrack visible-content facts before the barcode-specific checks are added. */
 function validateStarTrackTextFacts(facts) {
   const validations = [];
+  const lineCount = facts.extractedLineCount;
   validations.push(
-    facts.extractedLineCount > 0
+    lineCount > 0
       ? result(
           'ST_TEXT_EXTRACTED',
-          'Visible text extracted',
+          'Label text read',
           'INFO',
           'startrack-label-layout',
           'pass',
-          `${facts.extractedLineCount} text line(s) were extracted from the file.`,
+          `${lineCount} ${lineCount === 1 ? 'line' : 'lines'} of text read.`,
           { evidence: facts.lines.slice(0, 50).join('\n') }
         )
       : result(
           'ST_TEXT_EXTRACTED',
-          'Visible text extracted',
+          'Label text read',
           'WARNING',
           'startrack-label-layout',
           'manual_review',
-          'No selectable text was extracted. Barcode evidence is still assessed from the rendered image.'
+          'No text could be read. The barcodes are still checked.'
         )
   );
   return validations;
@@ -417,7 +418,9 @@ export function auditStarTrackLabel({
         raw: b.rawValue,
         symbologyIdentifier: b.symbologyIdentifier,
         decoderSource: b.source
-      })
+      }),
+      // The captured byte stream, so the report can show the barcode exactly as scanned.
+      rawBytes: b.rawBytes || ''
     }))
     .filter(p => p.type === 'sscc' && p.valid !== undefined && p.raw);
   const validSsccs = ssccParses.filter(p => p.valid);
@@ -486,7 +489,13 @@ export function auditStarTrackLabel({
       selectedFormat,
       detectedCarrier,
       detectedFormat,
-      evidence: modeEvidence || decodedValues.join('\n')
+      evidence: modeEvidence || decodedValues.join('\n'),
+      formatReason:
+        detectedFormat === 'standard'
+          ? `freight item barcode ${freightParses[0].freightItemId} was read`
+          : detectedFormat === 'sscc'
+            ? `SSCC barcode 00${ssccParses[0].sscc} was read`
+            : ''
     })
   );
   validations.push(...validateStarTrackTextFacts(facts));

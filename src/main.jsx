@@ -48,7 +48,9 @@ const LABEL_FAMILY_NAMES = { eparcel: 'eParcel', startrack: 'StarTrack', reader:
 // 18-digit logistics-unit identifier) rather than a standard article number.
 const LABEL_FORMAT_NAMES = { standard: 'Standard article format', sscc: 'SSCC article identifier' };
 const MAX_FILES_PER_BATCH = 20;
-const MAX_LABEL_FILE_BYTES = 50 * 1024 * 1024;
+// Per-file cap for label uploads (audit and Barcode Reader alike).
+const MAX_LABEL_FILE_MB = 7;
+const MAX_LABEL_FILE_BYTES = MAX_LABEL_FILE_MB * 1024 * 1024;
 /** Returns the display name shown for a carrier-specific upload/audit path. */
 function labelFamilyName(labelFamily) {
   return LABEL_FAMILY_NAMES[labelFamily] || LABEL_FAMILY_NAMES.eparcel;
@@ -226,7 +228,7 @@ function App() {
       }
       if (file.size > MAX_LABEL_FILE_BYTES) {
         rejected.push(
-          `${file.name || 'Unnamed file'} is ${formatBytes(file.size)}; the limit is ${formatBytes(MAX_LABEL_FILE_BYTES)}.`
+          `${file.name || 'Unnamed file'} is ${formatBytes(file.size)}. Labels must be ${MAX_LABEL_FILE_MB} MB or smaller.`
         );
         return false;
       }
@@ -506,8 +508,8 @@ function App() {
             </span>
             <span className="dropzone-subtitle">
               {selectedCarrier === 'reader'
-                ? 'PDF, PNG, JPG, WebP or BMP — raw barcode contents only, no validation rules'
-                : 'PDF, PNG, JPG, WebP or BMP'}
+                ? `PDF, PNG, JPG, WebP or BMP, up to ${MAX_LABEL_FILE_MB} MB each — raw barcode contents only, no validation rules`
+                : `PDF, PNG, JPG, WebP or BMP, up to ${MAX_LABEL_FILE_MB} MB each`}
             </span>
           </label>
         ) : (

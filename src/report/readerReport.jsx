@@ -2,24 +2,13 @@
 // outlines, then one line per decoded barcode - its raw value with FNC1/control characters
 // rendered visibly, and copy actions. Data shaping lives in readerData.js (pure, Node-tested).
 import React from 'react';
-import { CopyButton, InputQualityGauge, SectionTitle } from './common.jsx';
-import {
-  leadingFnc1Info,
-  rawContentOf,
-  rawDisplaySegments,
-  readerCopyAllText,
-  readerSymbologyName
-} from './readerData.js';
+import { CopyButton, InputQualityGauge, RawCode, RawCopyButtons, SectionTitle } from './common.jsx';
+import { readerCopyAllText, readerSymbologyName } from './readerData.js';
 
 /** One decoded barcode: symbology, then the raw value. The leading FNC1 marker renders only
- *  when the scan captured a GS1 symbology identifier (]C1 / ]d2 ...); in-payload FNC1 group
- *  separators (ASCII 29) always render as visible markers. */
+ *  when the scan captured a GS1 symbology identifier (]C1 / ]d2 ...); ASCII 29 bytes always
+ *  render as visible markers - FNC1 in a GS1 symbol, GS otherwise. */
 function ReaderBarcodeCard({ barcode, ordinal }) {
-  const { raw } = rawContentOf(barcode);
-  const segments = rawDisplaySegments(raw);
-  const fnc1 = leadingFnc1Info(barcode.symbologyIdentifier);
-  const readable = String(barcode.rawValue || '');
-  const readableDiffers = Boolean(readable) && readable !== raw;
   return (
     <li className="reader-barcode">
       <div className="barcode-meta reader-barcode-head">
@@ -29,27 +18,8 @@ function ReaderBarcodeCard({ barcode, ordinal }) {
         {barcode.pageNumber > 1 ? <span className="muted small">page {barcode.pageNumber}</span> : null}
       </div>
       <div className="segmented-code-row">
-        <code className="raw-code raw-code-block reader-raw-code">
-          {fnc1.status === 'first' ? (
-            <span
-              className="ctrl-char ctrl-char-lead"
-              title={`FNC1 in first position - signalled by symbology identifier ${fnc1.code}, not transmitted as data`}
-            >
-              ⟨FNC1⟩ {fnc1.code}
-            </span>
-          ) : null}
-          {segments.map((seg, i) =>
-            seg.ctrl ? (
-              <span key={i} className="ctrl-char" title={seg.title}>
-                {seg.display}
-              </span>
-            ) : (
-              <span key={i}>{seg.text}</span>
-            )
-          )}
-        </code>
-        <CopyButton value={raw} label="Copy raw value (control characters included)" text="Copy raw" />
-        {readableDiffers ? <CopyButton value={readable} label="Copy readable value" text="Copy readable" /> : null}
+        <RawCode barcode={barcode} className="reader-raw-code" />
+        <RawCopyButtons barcode={barcode} />
       </div>
     </li>
   );

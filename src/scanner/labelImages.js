@@ -1,6 +1,13 @@
 // Label preview images and per-barcode evidence crops for the report UI.
 import { STARTRACK_LABEL_CODE_MAP, parseEparcelBarcode } from '../auditEngine.js';
-import { FORMAT_KIND, bestLocatedBarcode, isDataMatrixBarcode, isLinearBarcode, isQrBarcode } from './barcodeTypes.js';
+import {
+  FORMAT_KIND,
+  bestLocatedBarcode,
+  hasFnc1First,
+  isDataMatrixBarcode,
+  isLinearBarcode,
+  isQrBarcode
+} from './barcodeTypes.js';
 import {
   BARCODE_BOX_MARGIN_PX,
   PREVIEW_BARCODE_BOX_MARGIN_PX,
@@ -75,9 +82,10 @@ export function isStarTrackRoutingValue(value) {
   return Boolean((route && STARTRACK_LABEL_CODE_MAP[route[1]]) || (gs1Route && STARTRACK_LABEL_CODE_MAP[gs1Route[1]]));
 }
 
-/** Returns the user-facing barcode type label used in captions and report sections. */
+/** Returns the user-facing barcode type label used in captions and report sections. "GS1" is
+ *  claimed only when the scan's symbology identifier proves FNC1 in the first position. */
 export function barcodeKindLabel(b) {
-  if (isDataMatrixBarcode(b)) return 'GS1 DataMatrix';
+  if (isDataMatrixBarcode(b)) return hasFnc1First(b?.symbologyIdentifier) ? 'GS1 DataMatrix' : 'DataMatrix';
   if (isQrBarcode(b)) return 'QR Barcode';
   if (isLinearBarcode(b)) return 'Linear Barcode';
   return b?.format || 'Barcode';

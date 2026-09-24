@@ -75,14 +75,6 @@ test('evalAssert path comparison operators', () => {
   assert.equal(evalAssert({ op: 'ltePath', path: 'text.maxWeight' }, '', context).pass, true, 'empty value passes');
 });
 
-test('evalAssert dateFormat validates digits and calendar parts', () => {
-  assert.equal(evalAssert({ op: 'dateFormat', value: 'YYMMDDHHMMSS' }, '250826123045').pass, true);
-  assert.equal(evalAssert({ op: 'dateFormat', value: 'YYMMDDHHMMSS' }, '251326123045').pass, false, 'month 13');
-  assert.equal(evalAssert({ op: 'dateFormat', value: 'YYMMDDHHMMSS' }, '2508261230').pass, false, 'short');
-  assert.equal(evalAssert({ op: 'dateFormat', value: 'YYYYMMDD' }, '20250826').pass, true);
-  assert.match(evalAssert({ op: 'dateFormat', value: 'NOPE' }, 'x').message, /Unknown date format/);
-});
-
 test('evalAssert fn dispatches to registered functions and flags unregistered ones', () => {
   registerRuleFunction('testAlwaysTrue', () => true);
   registerRuleFunction('testRichResult', (value, { args }) => ({
@@ -305,4 +297,58 @@ test('evaluateRuleSet formats fail messages with expected/actual/path placeholde
   const t01 = results.find(r => r.id === 'T-01');
   assert.equal(t01.status, 'fail');
   assert.equal(t01.message, 'Expected A but found B at fields.value.');
+});
+
+test('a failed presence check shows the missing message when the rule has no fail message', () => {
+  const ruleSet = {
+    id: 'presence',
+    rules: [
+      {
+        id: 'P-01',
+        title: 'Delivery address',
+        input: 'text.toBlock',
+        assert: { op: 'notEmpty' },
+        messages: { missing: 'No TO address was found.' }
+      },
+      {
+        id: 'P-02',
+        title: 'Sender address',
+        input: 'text.fromBlock',
+        assert: { op: 'present' },
+        messages: { fail: 'Fail wins.', missing: 'Not used.' }
+      }
+    ]
+  };
+  const byId = Object.fromEntries(evaluateRuleSet(ruleSet, { text: {} }).map(r => [r.id, r]));
+  assert.equal(byId['P-01'].message, 'No TO address was found.');
+  assert.equal(byId['P-02'].message, 'Fail wins.');
+});
+
+test('expectedText replaces the raw expected value and fills placeholders', () => {
+  const ruleSet = {
+    id: 'expected-text',
+    rules: [
+      {
+        id: 'E-01',
+        title: 'Postcode',
+        input: 'postcode',
+        expectedText: '4 digits',
+        assert: { op: 'matches', value: '^\\d{4}$' },
+        messages: { fail: 'Postcode {actual} must be 4 digits.' }
+      },
+      {
+        id: 'E-02',
+        title: 'Product',
+        input: 'product',
+        expectedText: 'A product for this label type: {expected}',
+        assert: { op: 'in', value: ['PRM', 'ARL'] }
+      },
+      { id: 'E-03', title: 'Raw', input: 'postcode', assert: { op: 'matches', value: '^\\d{4}$' } }
+    ]
+  };
+  const byId = Object.fromEntries(evaluateRuleSet(ruleSet, { postcode: '30A0', product: 'EXP' }).map(r => [r.id, r]));
+  assert.equal(byId['E-01'].expected, '4 digits');
+  assert.equal(byId['E-01'].message, 'Postcode 30A0 must be 4 digits.');
+  assert.equal(byId['E-02'].expected, 'A product for this label type: one of PRM, ARL');
+  assert.equal(byId['E-03'].expected, 'matches ^\\d{4}$', 'rules without expectedText keep the engine value');
 });

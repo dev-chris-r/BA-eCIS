@@ -7,7 +7,7 @@ import assert from 'node:assert/strict';
 import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
-import { DATE_FORMAT_NAMES, NORMALIZE_STEP_NAMES, resolvePath, resolveRuleSetTemplates } from '../src/ruleEngine.js';
+import { NORMALIZE_STEP_NAMES, resolvePath, resolveRuleSetTemplates } from '../src/ruleEngine.js';
 import { listRuleSets } from '../src/carriers/index.js';
 
 const repoRoot = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -39,7 +39,6 @@ const ASSERT_OPS = new Set([
   'notIn',
   'range',
   'ltePath',
-  'dateFormat',
   'fn'
 ]);
 const SEVERITIES = new Set(['CRITICAL', 'ERROR', 'WARNING', 'INFO']);
@@ -201,6 +200,13 @@ test('every merged rule set is internally consistent', () => {
           );
         }
 
+        // A regex is not a reader-friendly "Expected" value, so pattern rules must say it in words.
+        const usesPattern = [...assertNodes(rule.assert)].some(n => n.op === 'matches' || n.op === 'notMatches');
+        if (usesPattern) check(rule.expectedText, where, 'pattern rule needs an expectedText in plain words');
+        for (const [, token] of String(rule.expectedText || '').matchAll(/\{(\w+)\}/g)) {
+          check(MESSAGE_PLACEHOLDERS.has(token), where, `expectedText uses unknown placeholder {${token}}`);
+        }
+
         for (const node of [...assertNodes(rule.when), ...assertNodes(rule.itemWhen), ...assertNodes(rule.assert)]) {
           check(ASSERT_OPS.has(node.op), where, `unknown op ${node.op}`);
           for (const step of node.normalize || []) {
@@ -214,8 +220,6 @@ test('every merged rule set is internally consistent', () => {
             }
             check(!String(node.value).includes('{{'), where, `unresolved template token in regex ${node.value}`);
           }
-          if (node.op === 'dateFormat')
-            check(DATE_FORMAT_NAMES.includes(node.value), where, `unknown date format ${node.value}`);
           if (node.op === 'fn')
             check(functionNames.has(node.name), where, `rule function ${node.name} is not registered`);
           if ((node.op === 'in' || node.op === 'notIn') && typeof node.value === 'string') {

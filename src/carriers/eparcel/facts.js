@@ -73,9 +73,6 @@ export function extractLabelFacts(extractedText) {
   const weightRaw =
     firstLineValue(lines, /(?:Dead\s*weight|Weight)\s*([0-9.]+)\s*kg/i) ||
     firstLineValue(lines, /\b([0-9]+(?:\.[0-9]+)?)\s*kg\b/i);
-  const dateCodeLine = [...lines].reverse().find(line => /^\d{4}$/.test(line));
-  const dateCode = dateCodeLine || null;
-
   const toBlock = extractToBlock(lines);
   const fromBlock = extractFromBlock(lines);
   const dgBlock = extractDgBlock(lines);
@@ -105,7 +102,6 @@ export function extractLabelFacts(extractedText) {
     consignmentIds: consNo ? [consNo.toUpperCase()] : [],
     phone,
     weightKg: weightRaw || null,
-    dateCodeMMDD: dateCode || null,
     toBlock,
     fromBlock,
     dgBlock,

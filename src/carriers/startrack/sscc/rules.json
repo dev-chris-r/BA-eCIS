@@ -62,7 +62,7 @@
     {
       "id": "ST-SSC-09",
       "title": "GS1-128 FNC1 in first position",
-      "description": "The SSCC freight barcode is GS1-128: Code 128 with the FNC1 control character in the FIRST symbol position, ahead of AI 00. The leading FNC1 is never transmitted as data; scanners signal it with the ISO/IEC 15424 symbology identifier ]C1, which is the evidence assessed here.",
+      "description": "A GS1-128 SSCC barcode starts with FNC1. Scanners report this as the code ]C1.",
       "obligation": "mandatory",
       "severity": "CRITICAL",
       "category": "startrack-sscc",
@@ -99,6 +99,7 @@
       "id": "ST-SSC-10",
       "title": "SSCC uses a GS1 Australia prefix",
       "description": "Australian merchants' SSCCs usually start with a GS1 Australia prefix (93). Another prefix is allowed, so this is a note. Skipped when the profile has SSCC ranges.",
+      "expectedText": "Starts with a GS1 Australia prefix (93)",
       "obligation": "advisory",
       "severity": "INFO",
       "category": "startrack-sscc",
@@ -145,17 +146,17 @@
       "forEach": "barcodes.sscc.valid",
       "input": "item.articleId",
       "evidence": ["text.visibleSsccIds"],
-      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.visibleSsccIds", "normalize": ["stripSpaces", "upper"] } },
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.visibleSsccIds", "label": "printed SSCC", "normalize": ["stripSpaces", "upper"] } },
       "failStatus": "manual_review",
       "messages": {
         "pass": "Printed SSCC digits match the decoded AI 00 SSCC.",
-        "fail": "The printed SSCC digits do not match the decoded AI 00 SSCC ({actual}). Confirm visually - text extraction may be affected by watermarks or overlays.",
+        "fail": "The printed SSCC digits do not match the decoded AI 00 SSCC ({actual}). Check it on the label. Overlays and watermarks can throw off text reading.",
         "skipped": "No human-readable SSCC digits were extracted from the label text, so the printed digits could not be compared to the decoded SSCC."
       }
     },
     {
       "id": "ST-SSC-07",
-      "title": "Product context comes from QR and routing data",
+      "title": "Product comes from QR",
       "description": "SSCC numbering cannot embed a StarTrack product or service, so product context is taken from the QR payload and routing barcode instead of the article identifier.",
       "obligation": "mandatory",
       "severity": "INFO",
@@ -163,7 +164,9 @@
       "source": { "doc": "MOS v9", "page": 13 },
       "input": "selected.format",
       "assert": { "op": "equals", "value": "sscc" },
-      "messages": { "pass": "SSCC label: product is validated from QR/routing data, not the article identifier." }
+      "messages": {
+        "pass": "SSCC labels don't carry a product, so it comes from the QR and routing barcodes."
+      }
     }
   ]
 }

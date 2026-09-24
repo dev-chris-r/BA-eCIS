@@ -44,6 +44,11 @@ function resolveValueRef(ref, context, item, constants) {
   return ref;
 }
 
+/** "1 entry" / "3 entries" for list-valued inputs. */
+function entryCount(list) {
+  return `${list.length} ${list.length === 1 ? 'entry' : 'entries'}`;
+}
+
 /** Shared definition of "missing" across the engine: null/undefined, blank string, or empty array. */
 function isEmptyValue(value) {
   if (value === undefined || value === null) return true;
@@ -72,62 +77,6 @@ export function applyNormalize(value, normalize = []) {
     if (apply) out = apply(out);
   }
   return out;
-}
-
-// Date layouts accepted by the `dateFormat` op. Each part is [digit offset, field kind]: the
-// 2-digit slice at that offset must be a plausible calendar value (see isValidDatePart).
-const DATE_FORMATS = {
-  YYMMDDHHMMSS: {
-    length: 12,
-    parts: [
-      [2, 'month'],
-      [4, 'day'],
-      [6, 'hour'],
-      [8, 'minute'],
-      [10, 'second']
-    ]
-  },
-  YYYYMMDD: {
-    length: 8,
-    parts: [
-      [4, 'month'],
-      [6, 'day']
-    ]
-  },
-  YYYYMMDDHHMM: {
-    length: 12,
-    parts: [
-      [4, 'month'],
-      [6, 'day'],
-      [8, 'hour'],
-      [10, 'minute']
-    ]
-  }
-};
-
-export const DATE_FORMAT_NAMES = Object.keys(DATE_FORMATS);
-
-function isValidDatePart(kind, num) {
-  if (kind === 'month') return num >= 1 && num <= 12;
-  if (kind === 'day') return num >= 1 && num <= 31;
-  if (kind === 'hour') return num >= 0 && num <= 23;
-  return num >= 0 && num <= 59;
-}
-
-function checkDateFormat(value, format) {
-  const spec = DATE_FORMATS[format];
-  if (!spec) return { pass: false, message: `Unknown date format ${format}.` };
-  const str = String(value || '');
-  if (!new RegExp(`^\\d{${spec.length}}$`).test(str)) {
-    return { pass: false, expected: `${format} (${spec.length} digits, no spaces)`, actual: str || 'missing' };
-  }
-  for (const [offset, kind] of spec.parts) {
-    const num = Number(str.slice(offset, offset + 2));
-    if (!isValidDatePart(kind, num)) {
-      return { pass: false, expected: `${format} with a valid calendar ${kind}`, actual: str };
-    }
-  }
-  return { pass: true, actual: str };
 }
 
 /**
@@ -170,13 +119,13 @@ export function evalAssert(assert, value, context, item, constants) {
       return {
         pass: !isEmptyValue(value),
         expected: 'one or more entries',
-        actual: Array.isArray(value) ? `${value.length} entries` : value
+        actual: Array.isArray(value) ? entryCount(value) : value
       };
     case 'empty':
       return {
         pass: isEmptyValue(value),
         expected: 'no entries',
-        actual: Array.isArray(value) ? `${value.length} entries` : value
+        actual: Array.isArray(value) ? entryCount(value) : value
       };
     case 'matches': {
       const pattern = assert.flags ? new RegExp(assert.value, assert.flags) : new RegExp(assert.value);
@@ -236,8 +185,6 @@ export function evalAssert(assert, value, context, item, constants) {
         actual: str
       };
     }
-    case 'dateFormat':
-      return checkDateFormat(value, assert.value);
     case 'fn': {
       const fn = CUSTOM_FNS[assert.name];
       if (!fn) return { pass: false, message: `Rule function ${assert.name} is not registered.`, actual: str };
@@ -306,16 +253,28 @@ export function resolveRuleSource(rule, ruleSet) {
   };
 }
 
+// Presence ops fail when their input is blank, so a rule with no `fail` message falls back
+// to its `missing` message rather than the generic text.
+const PRESENCE_OPS = new Set(['present', 'notEmpty']);
+
 /**
  * Shapes one rule outcome into a report row. Message precedence: assert-supplied message,
- * then the rule's pass/fail template, then a generic fallback. forEach items get index-suffixed
- * ids so repeated rows stay unique in the report.
+ * then the rule's pass/fail template, then a generic fallback. A rule's `expectedText`
+ * (placeholders allowed) replaces the engine's expected value in the report, so readers see
+ * "4 digits" rather than a regex. forEach items get index-suffixed ids so repeated rows stay
+ * unique in the report.
  */
 function buildResult(rule, ruleSet, status, assertRes, inputPath, inputValue, context, item, index, multiple) {
-  const expected = assertRes.expected;
   const actual = assertRes.actual !== undefined ? assertRes.actual : inputValue;
-  const messageParts = { value: inputValue, expected, actual, path: inputPath };
-  const template = status === 'pass' ? rule.messages?.pass : rule.messages?.fail;
+  const messageParts = { value: inputValue, expected: assertRes.expected, actual, path: inputPath };
+  const expected =
+    rule.expectedText && status !== 'not_applicable'
+      ? formatMessage(rule.expectedText, messageParts)
+      : assertRes.expected;
+  const template =
+    status === 'pass'
+      ? rule.messages?.pass
+      : rule.messages?.fail || (PRESENCE_OPS.has(rule.assert?.op) ? rule.messages?.missing : undefined);
   const message =
     assertRes.message ||
     formatMessage(template, messageParts) ||

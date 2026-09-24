@@ -1198,6 +1198,7 @@ figcaption {
 .qr-val code {
   background: none;
   padding: 0;
+  white-space: pre-wrap;
 }
 .qr-noico {
   justify-self: center;

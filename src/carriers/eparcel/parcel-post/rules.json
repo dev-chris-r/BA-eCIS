@@ -12,6 +12,7 @@
       "id": "EP-LAY-05-PP",
       "title": "Parcel Post header branding",
       "description": "Parcel Post labels carry the Parcel Post product header and may print in black and white.",
+      "expectedText": "A Parcel Post header, not Express Post",
       "obligation": "mandatory",
       "severity": "WARNING",
       "category": "label-layout",

@@ -1,6 +1,13 @@
 // Pure helpers that read the audit result object: header/summary data for the
 // rail and report chrome, decoded-barcode grouping, and copy-all text.
-import { FORMAT_KIND, isDataMatrixBarcode, isLinearBarcode, isQrBarcode } from '../scanner/barcodeTypes.js';
+import {
+  FORMAT_KIND,
+  hasFnc1First,
+  isDataMatrixBarcode,
+  isLinearBarcode,
+  isQrBarcode
+} from '../scanner/barcodeTypes.js';
+import { rawContentOf } from './readerData.js';
 import { isStarTrackAtlValue, isStarTrackFreightItemValue, isStarTrackRoutingValue } from '../scanner/labelImages.js';
 import { SERVICE_CODE_MAP, STARTRACK_PRODUCT_CODE_MAP } from '../auditEngine.js';
 
@@ -46,10 +53,11 @@ export function starTrackFreightBarcodeList(audit) {
   return decodedBarcodeList(audit, 'linear').filter(b => isStarTrackFreightItemValue(b.rawValue));
 }
 
-/** Human-readable symbology name, tolerant of the varied format/symbology strings decoders emit. */
+/** Human-readable symbology name, tolerant of the varied format/symbology strings decoders emit.
+ *  "GS1" is claimed only when the symbology identifier proves FNC1 in the first position. */
 export function barcodeDisplayName(b) {
   const value = String(b?.format || b?.symbology || '').toLowerCase();
-  if (value.includes('data')) return 'GS1 DataMatrix';
+  if (value.includes('data')) return hasFnc1First(b?.symbologyIdentifier) ? 'GS1 DataMatrix' : 'DataMatrix';
   if (value.includes('qr') || b?.kind === FORMAT_KIND.qr) return 'QR Barcode';
   if (value.includes('128') || b?.kind === FORMAT_KIND.linear) return 'Linear / Code128';
   return b?.format || b?.symbology || 'barcode';
@@ -63,9 +71,10 @@ export function barcodeDisplayName(b) {
  *    raw value
  *    ------------------
  *
- *  Raw values are kept verbatim (fixed-width QR payloads keep their padding) and
- *  deduped so a symbol decoded on multiple passes is copied once; anything not covered
- *  by a named group falls back to its display name. */
+ *  Raw values are the captured bytes, verbatim (FNC1 separators stay ASCII 29, and
+ *  fixed-width QR payloads keep their padding), deduped so a symbol decoded on multiple
+ *  passes is copied once; anything not covered by a named group falls back to its
+ *  display name. */
 export function allBarcodesCopyText(audit) {
   const groups =
     audit?.carrier === 'startrack'
@@ -76,15 +85,15 @@ export function allBarcodesCopyText(audit) {
           ['Freight item barcode', starTrackFreightBarcodeList(audit)]
         ]
       : [
-          ['Linear barcode (GS1-128)', decodedBarcodeList(audit, 'linear')],
-          ['GS1 DataMatrix barcode', decodedBarcodeList(audit, 'datamatrix')],
+          ['Linear barcode', decodedBarcodeList(audit, 'linear')],
+          ['DataMatrix barcode', decodedBarcodeList(audit, 'datamatrix')],
           ['QR barcode', decodedBarcodeList(audit, 'qr')]
         ];
   const RULE = '-'.repeat(18);
   const seen = new Set();
   const blocks = [];
   const push = (label, b) => {
-    const raw = String(b?.rawValue || '');
+    const raw = rawContentOf(b).raw;
     const key = raw.trim();
     if (!key || seen.has(key)) return;
     seen.add(key);

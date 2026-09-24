@@ -23,15 +23,22 @@ function carrierName(carrier) {
   return carrier === 'startrack' ? 'StarTrack' : 'eParcel';
 }
 
+// How the format choice reads in a sentence: "You chose SSCC", "looks like a standard label".
+const FORMAT_CHOICE = { sscc: 'SSCC', standard: 'a standard label' };
+const FORMAT_LOOK = { sscc: 'an SSCC label', standard: 'a standard label' };
+
 /** CRITICAL cross-check that the selected carrier and label format match the decoded evidence,
- *  so a label audited under the wrong mode is flagged rather than silently scored. */
+ *  so a label audited under the wrong mode is flagged rather than silently scored.
+ *  `formatReason` names the barcode that decided the format, e.g. "SSCC barcode 00193… was read". */
 export function validateSelectedAuditMode({
   selectedCarrier = 'eparcel',
   selectedFormat = 'standard',
   detectedCarrier = 'unknown',
   detectedFormat = 'unknown',
-  evidence = ''
+  evidence = '',
+  formatReason = ''
 }) {
+  const chosen = carrierName(selectedCarrier);
   const validations = [];
   validations.push(
     detectedCarrier === selectedCarrier
@@ -41,8 +48,8 @@ export function validateSelectedAuditMode({
           'CRITICAL',
           'audit-mode',
           'pass',
-          `${carrierName(selectedCarrier)} was selected and label evidence matches.`,
-          { expected: carrierName(selectedCarrier), actual: carrierName(detectedCarrier), evidence }
+          `The barcodes match your choice: ${chosen}.`,
+          { expected: chosen, actual: carrierName(detectedCarrier), evidence }
         )
       : result(
           'AUDIT_MODE_CARRIER',
@@ -50,14 +57,17 @@ export function validateSelectedAuditMode({
           'CRITICAL',
           'audit-mode',
           'fail',
-          `${carrierName(selectedCarrier)} was selected, but decoded/text evidence indicates ${carrierName(detectedCarrier)}.`,
+          detectedCarrier === 'unknown'
+            ? `You chose ${chosen}, but no ${chosen} barcode was read. Check the carrier choice, and that the barcodes are readable.`
+            : `You chose ${chosen}, but the barcodes look like ${carrierName(detectedCarrier)}.`,
           {
-            expected: carrierName(selectedCarrier),
+            expected: chosen,
             actual: detectedCarrier === 'unknown' ? 'unknown' : carrierName(detectedCarrier),
             evidence
           }
         )
   );
+  const chosenFormat = normalizeLabelFormat(selectedFormat);
   validations.push(
     detectedFormat === selectedFormat
       ? result(
@@ -66,7 +76,7 @@ export function validateSelectedAuditMode({
           'CRITICAL',
           'audit-mode',
           'pass',
-          `${labelFormatName(selectedFormat)} was selected and decoded barcode evidence matches.`,
+          `The barcodes match your choice: ${labelFormatName(selectedFormat)}.`,
           { expected: labelFormatName(selectedFormat), actual: labelFormatName(detectedFormat), evidence }
         )
       : result(
@@ -75,7 +85,9 @@ export function validateSelectedAuditMode({
           'CRITICAL',
           'audit-mode',
           'fail',
-          `${labelFormatName(selectedFormat)} was selected, but decoded barcode evidence indicates ${detectedFormat === 'unknown' ? 'unknown format' : labelFormatName(detectedFormat)}.`,
+          detectedFormat === 'unknown'
+            ? `You chose ${FORMAT_CHOICE[chosenFormat]}, but no article barcode was read, so the format couldn't be confirmed.`
+            : `You chose ${FORMAT_CHOICE[chosenFormat]}, but the barcodes look like ${FORMAT_LOOK[normalizeLabelFormat(detectedFormat)]}${formatReason ? `: ${formatReason}` : ''}.`,
           {
             expected: labelFormatName(selectedFormat),
             actual: detectedFormat === 'unknown' ? 'unknown' : labelFormatName(detectedFormat),
@@ -138,7 +150,9 @@ registerRuleFunction('pageSizeWithin', (page, { args }) => {
     return {
       pass: false,
       status: args?.unverifiedStatus || 'manual_review',
-      message: 'Physical dimensions could not be determined from this file.'
+      message: page?.isRasterImage
+        ? "Images have no physical size, so the label size can't be checked. Upload the PDF to check it."
+        : "This file has no physical size, so the label size can't be checked."
     };
   }
   const tolerance = args?.toleranceMm ?? 5;
@@ -164,12 +178,12 @@ registerRuleFunction('requiredDecode', (value, { context, args }) => {
   const parts = [];
   parts.push(
     visible
-      ? `${args?.label || 'The required barcode'} appears visible on the label, but it was not decoded by the scanner pipeline.`
-      : `${args?.label || 'The required barcode'} was not decoded from the uploaded file.`
+      ? `${args?.label || 'The required barcode'} is visible but couldn't be read.`
+      : `${args?.label || 'The required barcode'} wasn't found on the label.`
   );
   if (page.isRasterImage && page.estimatedDpi && page.estimatedDpi < MIN_LINEAR_DECODE_DPI) {
     parts.push(
-      `The uploaded image is roughly ${page.estimatedDpi} DPI (${page.pixelWidth}x${page.pixelHeight}px). At this resolution the narrow bars and spaces of linear barcodes are usually destroyed and cannot be decoded. Upload the original PDF, or export the label image at 300 DPI or higher.`
+      `The image is about ${page.estimatedDpi} DPI (${page.pixelWidth}x${page.pixelHeight}px), too low to read thin barcode bars. Upload the original PDF, or export the label at 300 DPI or more.`
     );
   }
   return { pass: false, message: parts.join(' ') };
@@ -177,21 +191,24 @@ registerRuleFunction('requiredDecode', (value, { context, args }) => {
 
 // Membership check: passes when the value equals any normalized value found at args.path in
 // the context; with nothing to compare against it defers to manual review instead of failing.
+// args.label names the comparison source in plain words, e.g. "printed connote".
 registerRuleFunction('inPathList', (value, { context, item, args }) => {
   const raw = resolvePath(args?.path, context, item);
   const list = (Array.isArray(raw) ? raw : raw === undefined || raw === null || raw === '' ? [] : [raw])
     .map(v => applyNormalize(v, args?.normalize))
     .filter(Boolean);
+  const needle = applyNormalize(value, args?.normalize);
   if (!list.length) {
     return {
       pass: false,
       status: 'manual_review',
-      expected: `a matching value in ${args?.path}`,
-      actual: 'no comparison values available',
-      message: `No values were available at ${args?.path} to compare against.`
+      expected: 'none read',
+      actual: needle || 'missing',
+      message: args?.label
+        ? `The ${args.label} couldn't be read, so there's nothing to compare the barcode with.`
+        : "There's nothing to compare the barcode with."
     };
   }
-  const needle = applyNormalize(value, args?.normalize);
   return { pass: list.includes(needle), expected: list.join(', '), actual: needle || 'missing' };
 });
 

@@ -48,7 +48,7 @@
     {
       "id": "EP-SS-09",
       "title": "GS1-128 FNC1 in first position",
-      "description": "The linear SSCC barcode is GS1-128: Code 128 with the FNC1 control character in the FIRST symbol position, ahead of AI 00. The leading FNC1 is never transmitted as data; scanners signal it with the ISO/IEC 15424 symbology identifier ]C1, which is the evidence assessed here.",
+      "description": "A GS1-128 SSCC barcode starts with FNC1. Scanners report this as the code ]C1.",
       "obligation": "mandatory",
       "severity": "CRITICAL",
       "category": "sscc",
@@ -97,6 +97,7 @@
       "id": "EP-SS-10",
       "title": "SSCC uses a GS1 Australia prefix",
       "description": "Australian merchants' SSCCs usually start with a GS1 Australia prefix (93). Another prefix is allowed, so this is a note. Skipped when the profile has SSCC ranges.",
+      "expectedText": "Starts with a GS1 Australia prefix (93)",
       "obligation": "advisory",
       "severity": "INFO",
       "category": "sscc",
@@ -119,7 +120,7 @@
     {
       "id": "EP-SS-03",
       "title": "DataMatrix repeats the linear SSCC",
-      "description": "The GS1 DataMatrix must carry the same AI 00 SSCC as the linear barcode in its AI 91 article position. A DataMatrix with a different or missing SSCC breaks the label's article identity.",
+      "description": "The DataMatrix must carry the same SSCC as the linear barcode.",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "sscc",
@@ -130,7 +131,7 @@
       "input": "item.article.articleId",
       "evidence": ["item.raw", "derived.linearSsccIds"],
       "onMissing": "manual_review",
-      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "derived.linearSsccIds", "normalize": ["stripSpaces", "upper"] } },
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "derived.linearSsccIds", "label": "linear SSCC barcode", "normalize": ["stripSpaces", "upper"] } },
       "messages": {
         "pass": "The DataMatrix carries the same SSCC as the linear barcode.",
         "fail": "The DataMatrix article ({actual}) does not equal the SSCC decoded from the linear barcode.",
@@ -167,17 +168,17 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "in", "value": ["eparcel-standard", "sscc"] },
       "input": "item.articleId",
-      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.articleIds", "normalize": ["stripSpaces", "upper"] } },
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.articleIds", "label": "printed SSCC", "normalize": ["stripSpaces", "upper"] } },
       "failStatus": "manual_review",
       "messages": {
         "pass": "Visible article identifier matches the decoded barcode article.",
-        "fail": "Visible article identifier does not match the decoded barcode article. Confirm visually — text extraction may be affected by watermarks or overlays."
+        "fail": "Visible article identifier does not match the decoded barcode article. Check it on the label. Overlays and watermarks can throw off text reading."
       }
     },
     {
       "id": "EP-SS-06",
       "title": "SSCC not permitted on returns labels",
-      "description": "The standard Parcel Post/Express Post barcode is mandatory for returns services; SSCC barcodes cannot be used for eParcel Returns. Fires when an SSCC audit's label header text reads as a returns label.",
+      "description": "Returns labels can't use SSCC barcodes. They need the standard barcode.",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "sscc",
@@ -195,7 +196,7 @@
     },
     {
       "id": "EP-SS-05",
-      "title": "Embedded product/service checks suppressed",
+      "title": "SSCC product checks skipped",
       "description": "SSCC numbering cannot embed product or service codes, so those barcode-level checks do not apply. Delivery conditions come from the electronic order data.",
       "obligation": "mandatory",
       "severity": "INFO",
@@ -203,7 +204,9 @@
       "source": { "doc": "PP&EP v1.4", "page": 20 },
       "input": "selected.format",
       "assert": { "op": "equals", "value": "sscc" },
-      "messages": { "pass": "SSCC label: product and service codes are validated from order data, not the barcode." }
+      "messages": {
+        "pass": "SSCC labels don't carry product or service codes, so those checks are skipped."
+      }
     }
   ]
 }

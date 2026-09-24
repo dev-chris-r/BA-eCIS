@@ -55,26 +55,29 @@ function decodedDataMatrixPresent(detectedBarcodes) {
 
 // Reports what the label's text layer exposed (text, header, IDs, weight) as
 // informational validation rows, so reviewers can see what fact extraction found.
-function validateLabelFacts(facts) {
+// Printed weight is mandatory only on Metro labels (Metro V2.0); elsewhere a missing
+// weight is a note.
+function validateLabelFacts(facts, { weightRequired = false } = {}) {
   const validations = [];
+  const lineCount = facts.extractedLineCount;
   validations.push(
-    facts.extractedLineCount > 0
+    lineCount > 0
       ? result(
           'TEXT_EXTRACTED',
-          'PDF/text content extracted',
+          'Label text read',
           'INFO',
           'label-layout',
           'pass',
-          `${facts.extractedLineCount} text line(s) were extracted from the file.`,
+          `${lineCount} ${lineCount === 1 ? 'line' : 'lines'} of text read.`,
           { evidence: facts.lines.slice(0, 40).join('\n') }
         )
       : result(
           'TEXT_EXTRACTED',
-          'PDF/text content extracted',
+          'Label text read',
           'WARNING',
           'label-layout',
           'manual_review',
-          'No selectable or OCR text was extracted from this label.'
+          'No text could be read. The barcodes are still checked.'
         )
   );
 
@@ -86,7 +89,7 @@ function validateLabelFacts(facts) {
           'INFO',
           'label-layout',
           'pass',
-          `Detected label header text: ${facts.labelType}.`,
+          `Header read: ${facts.labelType}.`,
           { actual: facts.labelType }
         )
       : result(
@@ -95,7 +98,7 @@ function validateLabelFacts(facts) {
           'INFO',
           'label-layout',
           'not_applicable',
-          'Product branding/header was not exposed in the PDF text layer. Product family is assessed from the decoded product code instead.'
+          "The header couldn't be read, so the product comes from the barcode."
         )
   );
 
@@ -107,7 +110,7 @@ function validateLabelFacts(facts) {
           'INFO',
           'address-format',
           'pass',
-          `Visible AP Article ID value(s) extracted: ${facts.articleIds.join(', ')}.`,
+          `Printed AP Article ID read: ${facts.articleIds.join(', ')}.`,
           { actual: facts.articleIds.join(', ') }
         )
       : result(
@@ -116,7 +119,7 @@ function validateLabelFacts(facts) {
           'INFO',
           'address-format',
           'warning',
-          'No visible AP Article ID was extracted from text.'
+          "The printed AP Article ID couldn't be read."
         )
   );
 
@@ -128,7 +131,7 @@ function validateLabelFacts(facts) {
           'INFO',
           'address-format',
           'pass',
-          `Visible consignment number extracted: ${facts.consignmentIds.join(', ')}.`,
+          `Printed Cons No read: ${facts.consignmentIds.join(', ')}.`,
           { actual: facts.consignmentIds.join(', ') }
         )
       : result(
@@ -137,7 +140,7 @@ function validateLabelFacts(facts) {
           'INFO',
           'address-format',
           'manual_review',
-          'No visible Cons No value was extracted.'
+          "The printed Cons No couldn't be read."
         )
   );
 
@@ -149,7 +152,7 @@ function validateLabelFacts(facts) {
           'INFO',
           'label-layout',
           'pass',
-          `Weight value found: ${facts.weightKg}kg.`,
+          `Weight read: ${facts.weightKg}kg.`,
           { actual: `${facts.weightKg}kg` }
         )
       : result(
@@ -157,8 +160,10 @@ function validateLabelFacts(facts) {
           'Weight value visible',
           'INFO',
           'label-layout',
-          'manual_review',
-          'Weight value was not extracted from the text layer or decoded barcode payload.'
+          weightRequired ? 'manual_review' : 'info',
+          weightRequired
+            ? 'No weight was read from the label. Metro labels must print the declared weight.'
+            : "No weight was read from the label. That's fine: only Metro labels must print it."
         )
   );
 
@@ -168,7 +173,11 @@ function validateLabelFacts(facts) {
 // and run by the rule engine; they cover checks a declarative rule cannot express.
 registerRuleFunction('eparcelCheckDigit', article => {
   if (!article?.withoutCheckDigit) {
-    return { pass: false, status: 'manual_review', message: 'Article body unavailable for check digit calculation.' };
+    return {
+      pass: false,
+      status: 'manual_review',
+      message: "The article ID wasn't fully read, so its check digit couldn't be worked out."
+    };
   }
   const cd = calculateEparcelCheckDigit(article.withoutCheckDigit);
   const pass = cd.checkDigit === article.checkDigit;
@@ -178,8 +187,8 @@ registerRuleFunction('eparcelCheckDigit', article => {
     actual: article.checkDigit,
     evidence: cd.steps,
     message: pass
-      ? `Check digit is valid: ${article.checkDigit}.`
-      : `Check digit mismatch. Expected ${cd.checkDigit}, got ${article.checkDigit}.`
+      ? `Check digit ${article.checkDigit} is correct.`
+      : `The check digit is ${article.checkDigit}, but the article ID works out to ${cd.checkDigit}. Check the check-digit calculation.`
   };
 });
 
@@ -323,7 +332,6 @@ function buildEparcelRuleContext({
       toPostcodes,
       toState: addressState(lastAddressLine(toBlock)),
       postcodes4,
-      labelDates: facts.dateCodeMMDD ? [facts.dateCodeMMDD] : [],
       dgPresent: Boolean(facts.dangerousGoodsDeclarationPresent),
       dgBlock: (facts.dgBlock || []).join('\n')
     },
@@ -385,8 +393,6 @@ export function auditEparcelLabel({
   const manualValues = diagnosticManualValues(manualBarcodes);
   const decodedValues = decodedRawValues(detectedBarcodes);
 
-  validations.push(...validateLabelFacts(facts));
-
   const decodedLinear = decodedLinearPresent(detectedBarcodes);
   const decodedDm = decodedDataMatrixPresent(detectedBarcodes);
 
@@ -433,6 +439,8 @@ export function auditEparcelLabel({
     invalidMap.set(invalid.candidate, invalid);
   }
   const invalidAnalyses = [...invalidMap.values()];
+  const ruleVariant = selectEparcelVariant(selectedFormat, articles, facts);
+  validations.push(...validateLabelFacts(facts, { weightRequired: ruleVariant === 'metro' }));
   const dmParses = parsed.filter(p => 'hasAi420' in p);
   const detectedCarrier = standardArticles.length || dmParses.length || validSsccs.length ? 'eparcel' : 'unknown';
   const detectedFormat =
@@ -456,7 +464,13 @@ export function auditEparcelLabel({
       selectedFormat,
       detectedCarrier,
       detectedFormat,
-      evidence: modeEvidence || decodedValues.join('\n')
+      evidence: modeEvidence || decodedValues.join('\n'),
+      formatReason:
+        detectedFormat === 'standard'
+          ? `article ${standardArticles[0].articleId} was read`
+          : detectedFormat === 'sscc'
+            ? `SSCC barcode 00${validSsccs[0].sscc} was read`
+            : ''
     })
   );
 
@@ -491,7 +505,6 @@ export function auditEparcelLabel({
     visualEvidence,
     profile
   });
-  const ruleVariant = selectEparcelVariant(selectedFormat, articles, facts);
   const ruleSet = ruleSetFor(ruleVariant);
   validations.push(...evaluateRuleSet(ruleSet, ruleContext));
 

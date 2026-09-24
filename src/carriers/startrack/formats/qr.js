@@ -138,8 +138,7 @@ export const STARTRACK_QR_FIELDS = [
     pos: 100,
     len: 8,
     obligation: 'M',
-    rule: 'ST-QR-F11',
-    criteria: 'YYYYMMDD valid date'
+    criteria: 'YYYYMMDD. Not checked'
   },
   {
     num: 12,
@@ -238,8 +237,7 @@ export const STARTRACK_QR_FIELDS = [
     pos: 291,
     len: 12,
     obligation: 'COND',
-    rule: 'ST-QR-F21',
-    criteria: 'YYYYMMDDHHMM, <= not-after'
+    criteria: 'YYYYMMDDHHMM, not after the end date. Not checked'
   },
   {
     num: 22,
@@ -248,8 +246,7 @@ export const STARTRACK_QR_FIELDS = [
     pos: 303,
     len: 12,
     obligation: 'COND',
-    rule: 'ST-QR-F22',
-    criteria: 'YYYYMMDDHHMM'
+    criteria: 'YYYYMMDDHHMM. Not checked'
   },
   {
     num: 23,

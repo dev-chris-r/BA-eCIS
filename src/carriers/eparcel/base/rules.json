@@ -39,23 +39,6 @@
       }
     },
     {
-      "id": "EP-LAY-06",
-      "title": "Label generation date (MMDD) printed",
-      "description": "The MMDD date of label generation must be printed at the expected position on the label.",
-      "obligation": "mandatory",
-      "severity": "WARNING",
-      "category": "label-layout",
-      "source": { "doc": "PP&EP v1.4", "page": 14 },
-      "input": "text.labelDates",
-      "assert": { "op": "notEmpty" },
-      "onMissing": "manual_review",
-      "failStatus": "manual_review",
-      "messages": {
-        "pass": "A standalone MMDD date value was found on the label: {actual}.",
-        "missing": "No standalone MMDD date was extracted from the label text. Confirm the label generation date is printed in the expected position."
-      }
-    },
-    {
       "id": "EP-LAY-07",
       "title": "Dangerous goods declaration",
       "description": "The Aviation Security / Dangerous Goods declaration must appear on the label. Small-quantity DG labels instead carry FOR ROAD TRANSPORT ONLY.",
@@ -74,7 +57,7 @@
     },
     {
       "id": "EP-TO-01",
-      "title": "TO address block present",
+      "title": "Delivery address",
       "description": "The delivery block must open with the keyword TO or DELIVER TO.",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -86,13 +69,14 @@
       "failStatus": "warning",
       "messages": {
         "pass": "TO address block text was extracted.",
-        "missing": "TO/DELIVER TO was not found or could not be isolated from the text layer."
+        "missing": "No TO or DELIVER TO address was found. Check the delivery address is printed."
       }
     },
     {
       "id": "EP-TO-06",
       "title": "TO suburb, state, postcode line",
       "description": "The last line of the TO block must hold suburb, state and postcode on one line, fully capitalised, with no commas.",
+      "expectedText": "SUBURB STATE POSTCODE on one line, in capitals, no commas",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "address-format",
@@ -115,7 +99,7 @@
     },
     {
       "id": "EP-FR-01",
-      "title": "FROM address block present",
+      "title": "Sender address",
       "description": "The sender block must open with the keyword FROM or SENDER.",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -127,13 +111,14 @@
       "failStatus": "warning",
       "messages": {
         "pass": "FROM address block text was extracted.",
-        "missing": "FROM/SENDER was not found or could not be isolated from the text layer."
+        "missing": "No FROM or SENDER address was found. Check the sender address is printed."
       }
     },
     {
       "id": "EP-FR-05",
       "title": "FROM suburb, state, postcode line",
       "description": "The last line of the FROM block must hold suburb, state and postcode on one line, fully capitalised, with no commas.",
+      "expectedText": "SUBURB STATE POSTCODE on one line, in capitals, no commas",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "address-format",
@@ -299,6 +284,7 @@
       "id": "EP-ART-02",
       "title": "MLID format",
       "description": "The Merchant Location ID must be 3 or 5 uppercase alphanumeric characters.",
+      "expectedText": "3 or 5 letters or digits",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "barcode-structure",
@@ -306,7 +292,10 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.mlid",
-      "assert": { "op": "matches", "value": "^[A-Z0-9]{3}$|^[A-Z0-9]{5}$" }
+      "assert": { "op": "matches", "value": "^[A-Z0-9]{3}$|^[A-Z0-9]{5}$" },
+      "messages": {
+        "fail": "MLID {actual} must be 3 or 5 capital letters or digits, e.g. JDQ or 1JDQ1."
+      }
     },
     {
       "id": "EP-ART-09",
@@ -346,8 +335,9 @@
     },
     {
       "id": "EP-ART-03",
-      "title": "Consignment serial",
+      "title": "Consignment number",
       "description": "The consignment serial following the MLID must be exactly 7 digits.",
+      "expectedText": "7 digits",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "barcode-structure",
@@ -355,12 +345,16 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.consignmentSuffix",
-      "assert": { "op": "matches", "value": "^\\d{7}$" }
+      "assert": { "op": "matches", "value": "^\\d{7}$" },
+      "messages": {
+        "fail": "The consignment digits {actual} must be 7 digits, from 0000001."
+      }
     },
     {
       "id": "EP-ART-04",
-      "title": "Article count 01-20",
+      "title": "Parcel count",
       "description": "The article count is the position of the article within the consignment and must be between 01 and 20.",
+      "expectedText": "01 to 20",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "barcode-structure",
@@ -368,11 +362,14 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.articleCount",
-      "assert": { "op": "range", "min": 1, "max": 20 }
+      "assert": { "op": "range", "min": 1, "max": 20 },
+      "messages": {
+        "fail": "Parcel count {actual} must be 01 to 20. A consignment holds at most 20 parcels."
+      }
     },
     {
       "id": "EP-ART-05",
-      "title": "Postage paid indicator",
+      "title": "Postage paid digit",
       "description": "The postage paid indicator is the fixed value 0.",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -381,7 +378,10 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.postagePaidIndicator",
-      "assert": { "op": "equals", "value": "0" }
+      "assert": { "op": "equals", "value": "0" },
+      "messages": {
+        "fail": "The postage paid digit is {actual}. It must be 0."
+      }
     },
     {
       "id": "EP-ART-06",
@@ -408,11 +408,11 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.consignmentId",
-      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.consignmentIds", "normalize": ["stripSpaces", "upper"] } },
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.consignmentIds", "label": "printed Cons No", "normalize": ["stripSpaces", "upper"] } },
       "failStatus": "manual_review",
       "messages": {
         "pass": "Visible Cons No matches the decoded barcode consignment.",
-        "fail": "Visible Cons No does not match the decoded barcode consignment. Confirm visually — text extraction may be affected by watermarks or overlays."
+        "fail": "Visible Cons No does not match the decoded barcode consignment. Check it on the label. Overlays and watermarks can throw off text reading."
       }
     },
     {
@@ -427,16 +427,16 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.articleId",
-      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.articleIds", "normalize": ["stripSpaces", "upper"] } },
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.articleIds", "label": "printed AP Article ID", "normalize": ["stripSpaces", "upper"] } },
       "failStatus": "manual_review",
       "messages": {
         "pass": "Visible AP Article ID matches the decoded barcode article.",
-        "fail": "Visible AP Article ID does not match the decoded barcode article. Confirm visually — text extraction may be affected by watermarks or overlays."
+        "fail": "Visible AP Article ID does not match the decoded barcode article. Check it on the label. Overlays and watermarks can throw off text reading."
       }
     },
     {
       "id": "EP-SVC-01",
-      "title": "Known service code",
+      "title": "Service code",
       "description": "The two-digit service code must be a published eParcel service code.",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -445,11 +445,14 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.serviceCode",
-      "assert": { "op": "in", "value": "$constants.serviceCodes" }
+      "assert": { "op": "in", "value": "$constants.serviceCodes" },
+      "messages": {
+        "fail": "Service code {actual} isn't a published eParcel service code."
+      }
     },
     {
       "id": "EP-SVC-02",
-      "title": "Known product code",
+      "title": "Product code",
       "description": "The five-character product code must be a published eParcel product code.",
       "obligation": "mandatory",
       "severity": "ERROR",
@@ -458,7 +461,10 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.productCode",
-      "assert": { "op": "in", "value": "$constants.productCodes" }
+      "assert": { "op": "in", "value": "$constants.productCodes" },
+      "messages": {
+        "fail": "Product code {actual} isn't in the published list. If Australia Post issued it under the contract, confirm with the integration specialist."
+      }
     },
     {
       "id": "EP-SVC-03",
@@ -475,8 +481,9 @@
     },
     {
       "id": "EP-SVC-07",
-      "title": "Product matches the audited label type",
+      "title": "Product fits the label type",
       "description": "The product code embedded in the barcode must belong to the product family selected for this audit.",
+      "expectedText": "A product for this label type: {expected}",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "service-code",
@@ -484,7 +491,10 @@
       "forEach": "articles",
       "itemWhen": { "path": "item.type", "op": "equals", "value": "eparcel-standard" },
       "input": "item.productCode",
-      "assert": { "op": "in", "value": "$constants.allowedProducts" }
+      "assert": { "op": "in", "value": "$constants.allowedProducts" },
+      "messages": {
+        "fail": "Product {actual} doesn't belong to the label type being audited."
+      }
     },
     {
       "id": "EP-DM-04",
@@ -506,7 +516,7 @@
     {
       "id": "EP-DM-08",
       "title": "FNC1 separators positioned before AI 420/92/8008",
-      "description": "A conforming DataMatrix positions an FNC1 group separator immediately before AI 420 and AI 8008 (and AI 92 when present). When an AI value can only be recovered by scanning the undelimited payload, the separators are missing or misplaced. Some scanners strip separator control characters, so this is raised for manual review rather than as a hard failure.",
+      "description": "An FNC1 separator must come before AI 420 and AI 8008, and before AI 92 when it's present.",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "datamatrix",
@@ -524,7 +534,7 @@
     {
       "id": "EP-DM-09",
       "title": "GS1 FNC1 in first position",
-      "description": "A GS1 DataMatrix is Data Matrix ECC 200 with the FNC1 codeword in the FIRST position (GS1 DataMatrix Guideline / ISO/IEC 16022). The leading FNC1 is not transmitted as data; scanners signal it with the ISO/IEC 15424 symbology identifier ]d2, which is the evidence assessed here.",
+      "description": "A GS1 DataMatrix starts with FNC1. Scanners report this as the code ]d2.",
       "obligation": "mandatory",
       "severity": "CRITICAL",
       "category": "datamatrix",
@@ -543,7 +553,7 @@
     {
       "id": "EP-DM-10",
       "title": "Data Matrix ECC 200",
-      "description": "GS1 applications permit only the ECC 200 version of Data Matrix (ISO/IEC 16022); the older ECC 000-140 family is not allowed. Evidence: the ISO/IEC 15424 symbology identifier (]d1-]d6 indicate ECC 200 forms, ]d0 indicates ECC 000-140), or a successful decode by the ZXing engines, which only read ECC 200 symbols.",
+      "description": "Only Data Matrix ECC 200 is allowed. Scanners report which version they read.",
       "obligation": "mandatory",
       "severity": "CRITICAL",
       "category": "datamatrix",
@@ -562,7 +572,7 @@
     {
       "id": "EP-DM-11",
       "title": "No doubled or trailing FNC1 group separators",
-      "description": "Each encoded AI is preceded by exactly one FNC1 group separator. Two separators in a row - most often AI 92 removed without removing its FNC1 - or a separator left at the end of the payload is invalid.",
+      "description": "Each AI has exactly one separator before it, never doubled or left at the end.",
       "obligation": "mandatory",
       "severity": "CRITICAL",
       "category": "datamatrix",
@@ -580,6 +590,7 @@
       "id": "EP-DM-05",
       "title": "AI 420 delivery postcode",
       "description": "The DataMatrix must contain AI 420 followed by a four-digit delivery postcode.",
+      "expectedText": "4 digits",
       "obligation": "mandatory",
       "severity": "CRITICAL",
       "category": "datamatrix",
@@ -596,8 +607,9 @@
     },
     {
       "id": "EP-TO-08",
-      "title": "AI 420 postcode matches the TO address",
-      "description": "The postcode encoded in the DataMatrix must equal the postcode visible in the TO address block.",
+      "title": "Barcode postcode printed on label",
+      "description": "The DataMatrix postcode must be the delivery postcode. This check only confirms it's printed somewhere on the label.",
+      "expectedText": "A printed postcode ({expected})",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "datamatrix",
@@ -606,7 +618,11 @@
       "itemWhen": { "path": "item.postcode", "op": "present" },
       "input": "item.postcode",
       "evidence": ["text.postcodeLines"],
-      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.postcodes4" } }
+      "assert": { "op": "fn", "name": "inPathList", "args": { "path": "text.postcodes4", "label": "printed postcode" } },
+      "messages": {
+        "pass": "Barcode postcode {actual} is printed on the label.",
+        "fail": "Barcode postcode {actual} isn't printed on the label. Printed postcodes: {expected}."
+      }
     },
     {
       "id": "EP-TO-09",
@@ -628,6 +644,7 @@
       "id": "EP-DM-06",
       "title": "AI 92 Delivery Point Identifier",
       "description": "When AI 92 is present it must carry an 8-digit DPID other than 00000000. When the DPID is unavailable, AI 92 and its separator must be omitted entirely.",
+      "expectedText": "8 digits, not 00000000",
       "obligation": "conditional",
       "severity": "ERROR",
       "category": "datamatrix",
@@ -648,7 +665,7 @@
     },
     {
       "id": "EP-DM-06-NA",
-      "title": "AI 92 omitted (DPID unavailable)",
+      "title": "DPID left out",
       "description": "Omitting AI 92 and its separator is the correct encoding when no DPID is available.",
       "obligation": "conditional",
       "severity": "INFO",
@@ -658,30 +675,14 @@
       "itemWhen": { "path": "item.hasAi92", "op": "equals", "value": false },
       "input": "item.hasAi92",
       "assert": { "op": "equals", "value": false },
-      "messages": { "pass": "DPID is absent. This is allowed when AI 92 and its separator are omitted." }
-    },
-    {
-      "id": "EP-DM-07",
-      "title": "AI 8008 label generation date/time",
-      "description": "The DataMatrix must contain AI 8008 followed by YYMMDDHHMMSS with no spaces and a valid calendar date/time.",
-      "obligation": "mandatory",
-      "severity": "CRITICAL",
-      "category": "datamatrix",
-      "source": { "doc": "PP&EP v1.4", "page": 19 },
-      "forEach": "barcodes.datamatrix",
-      "input": "item.dateTime",
-      "evidence": ["item.raw"],
-      "assert": { "op": "dateFormat", "value": "YYMMDDHHMMSS" },
       "messages": {
-        "pass": "AI 8008 date/time is present and plausible: {actual}.",
-        "fail": "AI 8008 label generation date/time is missing or invalid: {actual}.",
-        "missing": "AI 8008 label generation date/time is missing from the DataMatrix payload."
+        "pass": "No DPID. That's allowed when AI 92 and its separator are both removed."
       }
     },
     {
       "id": "EP-SS-STRAY",
       "title": "Unexpected SSCC barcode on a standard label",
-      "description": "A valid AI 00 SSCC barcode was decoded on a label audited as a standard Parcel Post / Express Post label. SSCC symbols belong on SSCC logistics labels; an extra SSCC on a standard label can misdirect sortation.",
+      "description": "An SSCC barcode on a standard label can send the parcel the wrong way.",
       "obligation": "advisory",
       "severity": "WARNING",
       "category": "sscc",

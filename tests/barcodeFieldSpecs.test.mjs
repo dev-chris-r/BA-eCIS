@@ -29,7 +29,8 @@ test('every barcode field has a valid obligation and a resolvable citation', () 
   for (const [group, specs] of Object.entries(GROUPS)) {
     for (const [label, def] of Object.entries(specs)) {
       const where = `${group} / ${label}`;
-      if (label === 'GS1 element') continue; // the unrecognised-element fallback carries no spec metadata
+      // The unrecognised-element fallback and the raw-data markers carry no spec metadata.
+      if (['GS1 element', 'Group separator', 'Control character'].includes(label)) continue;
       if (!OBLIGATIONS.has(def.obligation)) problems.push(`${where}: obligation ${def.obligation}`);
       if (!def.source?.doc) {
         problems.push(`${where}: no source doc`);
@@ -93,11 +94,20 @@ test('routing depot/port is held at manual review, never passed digitally', () =
 test('SSCC field maps judge FNC1-in-first-position from the ]C1 identifier', () => {
   const specs = GROUPS['startrack SSCC'];
   assert.equal(specs['FNC1 start'].check(']C1'), 'pass');
-  assert.equal(specs['FNC1 start'].check(']C0'), 'fail');
-  assert.equal(specs['FNC1 start'].check(''), null, 'unknown identifier renders no verdict');
-  assert.match(specs['FNC1 start'].detail(''), /FNC1 in first position/);
+  assert.match(specs['FNC1 start'].detail(']C1'), /FNC1 in the first position/);
+  assert.equal(specs['Symbology identifier'].check(']C0'), 'fail', 'a non-GS1 identifier is evidence of no FNC1');
+  assert.match(specs['Symbology identifier'].detail(']C0'), /not GS1-128/);
   assert.match(fieldMetaText(specs['FNC1 start']), /StarTrack Label Specifications.*p13$/);
   assert.match(fieldMetaText(GROUPS['eparcel SSCC']['FNC1 start']), /Parcel Post and Express Post.*p26$/);
+});
+
+test('FNC1 separator rows pass only on a captured ASCII 29', () => {
+  const specs = GROUPS['eparcel article/GS1'];
+  assert.equal(specs['FNC1 separator'].check('\x1d'), 'pass');
+  assert.equal(specs['FNC1 separator'].check(''), null);
+  assert.equal(specs['Symbology identifier'].check(']d1'), 'fail');
+  assert.equal(GROUPS.routing['FNC1 start'].check(']C1', { joined: '4210364000\x1d403PRM' }), 'pass');
+  assert.equal(GROUPS.routing['FNC1 start'].check(']C1', { joined: 'PRM4807TSV' }), null, 'no verdict off GS1 routing');
 });
 
 test('article check-digit drawer shows the full weighted-sum working', () => {

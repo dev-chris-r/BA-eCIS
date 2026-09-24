@@ -6,14 +6,12 @@
 //   2. In-payload FNC1 group separators arrive as ASCII 29 (GS) in the raw byte stream,
 //      which display text modes often strip or rewrite - so the byte stream is preferred.
 
-// Symbology identifiers that mean "FNC1 encoded in first position" (a GS1 carrier):
-// ]C1 GS1-128, ]d2/]d5 GS1 DataMatrix, ]Q3 GS1 QR Code, ]e0 GS1 DataBar.
-const GS1_FIRST_IDENTIFIERS = new Set([']C1', ']d2', ']d5', ']Q3', ']e0']);
+import { hasFnc1First } from '../scanner/barcodeTypes.js';
 
 /** Classifies the leading-FNC1 evidence from a decoder's symbology identifier. */
 export function leadingFnc1Info(symbologyIdentifier) {
   const code = String(symbologyIdentifier || '');
-  if (GS1_FIRST_IDENTIFIERS.has(code)) {
+  if (hasFnc1First(code)) {
     return {
       status: 'first',
       code,
@@ -46,8 +44,9 @@ export function rawContentOf(barcode) {
 }
 
 /** Splits raw content into display segments: printable runs plus visible control-character
- *  markers (ASCII 29 GS renders as an FNC1 marker; any other control char as its hex). */
-export function rawDisplaySegments(raw) {
+ *  markers. ASCII 29 (GS) renders as an FNC1 marker only in a GS1 symbol (`gs1`, proven by
+ *  the symbology identifier); otherwise as a plain GS. Other control chars show their hex. */
+export function rawDisplaySegments(raw, { gs1 = false } = {}) {
   const out = [];
   for (const ch of String(raw || '')) {
     const codePoint = ch.charCodeAt(0);
@@ -61,7 +60,9 @@ export function rawDisplaySegments(raw) {
     const hex = `0x${codePoint.toString(16).toUpperCase().padStart(2, '0')}`;
     out.push(
       codePoint === 0x1d
-        ? { ctrl: true, text: ch, display: '⟨FNC1⟩', title: 'FNC1 group separator (ASCII 29 GS)' }
+        ? gs1
+          ? { ctrl: true, text: ch, display: '⟨FNC1⟩', title: 'FNC1 group separator (ASCII 29 GS)' }
+          : { ctrl: true, text: ch, display: '⟨GS⟩', title: 'Group separator (ASCII 29). Not GS1, so not an FNC1' }
         : { ctrl: true, text: ch, display: `⟨${hex}⟩`, title: `Control character ${hex}` }
     );
   }

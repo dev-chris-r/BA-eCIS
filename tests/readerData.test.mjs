@@ -15,7 +15,7 @@ import {
 const GS = String.fromCharCode(29);
 
 test('leadingFnc1Info classifies GS1 identifiers, non-GS1 identifiers, and missing ones', () => {
-  for (const code of [']C1', ']d2', ']d5', ']Q3', ']e0']) {
+  for (const code of [']C1', ']d2', ']d5', ']Q3', ']Q4', ']e0']) {
     const info = leadingFnc1Info(code);
     assert.equal(info.status, 'first', code);
     assert.match(info.detail, /never transmitted as data/);
@@ -29,10 +29,15 @@ test('leadingFnc1Info classifies GS1 identifiers, non-GS1 identifiers, and missi
 });
 
 test('rawDisplaySegments renders FNC1 separators and other control characters visibly', () => {
-  const segs = rawDisplaySegments(`0094${GS}42110036${GS}`);
+  const segs = rawDisplaySegments(`0094${GS}42110036${GS}`, { gs1: true });
   assert.deepEqual(
     segs.map(s => (s.ctrl ? s.display : s.text)),
     ['0094', '⟨FNC1⟩', '42110036', '⟨FNC1⟩']
+  );
+  // Outside a proven GS1 symbol, ASCII 29 is a plain GS, not an FNC1.
+  assert.deepEqual(
+    rawDisplaySegments(`0094${GS}421`).map(s => (s.ctrl ? s.display : s.text)),
+    ['0094', '⟨GS⟩', '421']
   );
   // The underlying characters are preserved so copy actions stay byte-faithful.
   assert.equal(segs.map(s => s.text).join(''), `0094${GS}42110036${GS}`);

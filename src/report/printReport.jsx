@@ -9,7 +9,7 @@ import React from 'react';
 import { getAuditSections } from './sections.jsx';
 import { InputQualityGauge, SegmentedCode, SEG_PALETTE } from './common.jsx';
 import { StatusIcon } from './reportView.jsx';
-import { rawSegments, rawValueWithIdentifier } from './segments.js';
+import { barcodeSegments } from './segments.js';
 import { ARTICLE_FIELD_SPECS, fieldSpecsFor } from './barcodeFieldSpecs.js';
 import { isDataMatrixBarcode, isLinearBarcode, isQrBarcode } from '../scanner/barcodeTypes.js';
 import { isStarTrackAtlValue, isStarTrackFreightItemValue, isStarTrackRoutingValue } from '../scanner/labelImages.js';
@@ -128,13 +128,15 @@ function fieldRows(segments, kind) {
   return segs.map((s, i) => {
     const text = String(s.text);
     const def = specs[s.label];
+    // Markers (FNC1 start, symbology identifier) are judged on the identifier, not data.
+    const checked = s.ident ?? text;
     return {
       swatch: s.display ? 'seg-sep' : `seg-c${i % SEG_PALETTE}`,
       name: s.label,
       obligation: def?.obligation ? def.obligation[0].toUpperCase() + def.obligation.slice(1) : '',
       length: text.length,
-      value: text.length ? (s.display ?? text) : '',
-      status: def?.check ? def.check(text, ctx) : null
+      value: s.ident ? s.display : text.length ? (s.display ?? text) : '',
+      status: def?.check ? def.check(checked, ctx) : null
     };
   });
 }
@@ -163,7 +165,7 @@ function IssueLines({ items }) {
  */
 function PrintBarcodeSection({ group, items }) {
   const barcode = group.barcodes[0] || null;
-  const segments = barcode ? rawSegments(rawValueWithIdentifier(barcode, group.kind), group.kind) : [];
+  const segments = barcode ? barcodeSegments(barcode, group.kind) : [];
   const rows = barcode ? fieldRows(segments, group.kind) : null;
   const passCount = items.filter(v => v.status === 'pass').length;
   return (
@@ -199,13 +201,13 @@ function PrintBarcodeSection({ group, items }) {
               {(
                 rows ||
                 segments
-                  .filter(s => s && String(s.text).length > 0)
+                  .filter(s => s && (String(s.text).length > 0 || s.display))
                   .map((s, i) => ({
-                    swatch: `seg-c${i % SEG_PALETTE}`,
+                    swatch: s.display ? 'seg-sep' : `seg-c${i % SEG_PALETTE}`,
                     name: s.label,
                     obligation: '',
                     length: String(s.text).length,
-                    value: String(s.text),
+                    value: s.display ?? String(s.text),
                     status: null
                   }))
               ).map((r, i) => (

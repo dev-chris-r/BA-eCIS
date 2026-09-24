@@ -11,7 +11,7 @@
     {
       "id": "ST-LOC-01",
       "title": "Premium receiver location codes (RC/R1/R2)",
-      "description": "Premium labels must print the receiver location codes with the routing barcode (Arial Bold 22pt): RC = 'AU', R1 = Primary Port and R2 = Secondary Port from the Location Master File. NZ Premium (routing postcode 9901) prints the fixed trio NZ/SYD/ZNA. The printed codes are cross-checked one way against the decoded routing barcode port and the QR destination depot; Location Master File validity cannot be verified digitally.",
+      "description": "Premium labels print RC AU, R1 the Primary Port and R2 the Secondary Port beside the routing barcode. NZ labels print NZ, SYD and ZNA.",
       "obligation": "mandatory",
       "severity": "INFO",
       "category": "startrack-routing",

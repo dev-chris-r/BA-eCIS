@@ -18,6 +18,7 @@ import {
 import { resolveRuleSource } from '../ruleEngine.js';
 import { getRuleSet } from '../carriers/index.js';
 import { formatRuleSource } from './ruleSource.js';
+import { leadingFnc1Info } from './readerData.js';
 
 // Short document keys into FIELD_DOCUMENTS below; citations resolve them to full spec titles.
 const EP_SPEC = 'PP&EP v1.4';
@@ -125,14 +126,15 @@ const ssccFieldSpecs = kind => {
   const src = kind === 'freight' ? cite('mandatory', ST_SPEC, 13) : cite('mandatory', EP_SPEC, 26);
   return {
     'FNC1 start': pf(
-      'GS1-128 symbol start: FNC1 required in the FIRST position, ahead of AI 00 (scanners signal it as symbology identifier ]C1 — it is not a data character)',
-      t => (t === ']C1' ? 'pass' : /^\]C\d$/.test(t) ? 'fail' : null),
-      t =>
-        t === ''
-          ? 'not visible in this decode — see the "FNC1 in first position" rule row, which assesses the decoder-reported symbology identifier'
-          : t === ']C1'
-            ? `symbology identifier ${t}: FNC1 in first position (GS1-128)`
-            : `symbology identifier ${t}: FNC1 is NOT in first position`,
+      'GS1-128 symbol start: FNC1 in the FIRST position, ahead of AI 00. Scanners signal it as symbology identifier ]C1; it is not a data character',
+      t => (t === ']C1' ? 'pass' : null),
+      t => `symbology identifier ${t}: FNC1 in the first position (GS1-128)`,
+      src
+    ),
+    'Symbology identifier': pf(
+      'GS1-128 starts with FNC1, which scanners report as ]C1',
+      t => (/^\]C\d$/.test(t) ? 'fail' : null),
+      t => `symbology identifier ${t}: no FNC1 in the first position, so this is plain Code 128, not GS1-128`,
       src
     ),
     'AI 00': pf('GS1 Application Identifier 00 — SSCC follows', literalCheck('00'), null, src),
@@ -216,7 +218,7 @@ const GS1_FIELD_SPECS = {
     null,
     cite('mandatory', EP_SPEC, 19)
   ),
-  'AI 8008 date/time value': pf('Date/time — YYMMDDHHMMSS', digitsCheck(12), null, cite('mandatory', EP_SPEC, 19)),
+  'AI 8008 date/time value': pf('Date/time — YYMMDDHHMMSS, not checked', null, null, cite('mandatory', EP_SPEC, 19)),
   'AI 00 SSCC': pf(
     'GS1 Application Identifier 00 — SSCC follows',
     literalCheck('00'),
@@ -229,29 +231,31 @@ const GS1_FIELD_SPECS = {
     null,
     cite('mandatory', EP_SPEC, 26)
   ),
+  // Shown only when the scan's symbology identifier proves FNC1 in the first position.
   'FNC1 start': pf(
-    'GS1 symbol start: FNC1 required in the FIRST position (GS1 DataMatrix signals it as symbology identifier ]d2; GS1-128 as ]C1 — it is not a data character)',
-    t => (t === ']d2' || t === ']d5' || t === ']C1' ? 'pass' : /^\]d\d$/.test(t) ? 'fail' : null),
-    t =>
-      t === ''
-        ? 'not visible in this decode — see the "FNC1 in first position" rule row, which assesses the decoder-reported symbology identifier'
-        : /^\](d[25]|C1)$/.test(t)
-          ? `symbology identifier ${t}: FNC1 in first position (GS1 carrier)`
-          : `symbology identifier ${t}: FNC1 is NOT in first position`,
+    'GS1 symbol start: FNC1 in the FIRST position. Scanners signal it as symbology identifier ]d2 (DataMatrix) or ]C1 (GS1-128); it is not a data character',
+    t => (leadingFnc1Info(t).status === 'first' ? 'pass' : null),
+    t => `symbology identifier ${t}: FNC1 in the first position (GS1 symbol)`,
     cite('mandatory', 'GS1 DataMatrix Guideline', null, 'ISO/IEC 16022 FNC1 in first position')
   ),
+  // Shown when the scan reported an identifier that does not prove FNC1 first.
+  'Symbology identifier': pf(
+    'GS1 symbols start with FNC1, which scanners report as ]d2 (DataMatrix) or ]C1 (GS1-128)',
+    t => (/^\]d\d$/.test(t) ? 'fail' : null),
+    t => `symbology identifier ${t}: no FNC1 in the first position, so this is not a GS1 symbol`,
+    cite('mandatory', 'GS1 DataMatrix Guideline', null, 'ISO/IEC 16022 FNC1 in first position')
+  ),
+  // One row per ASCII 29 byte actually captured in a GS1 symbol - never inferred.
   'FNC1 separator': pf(
-    'GS1 FNC1 group separator expected at this element boundary — encoded as ASCII 29',
-    t => (t.length ? 'pass' : null),
-    t =>
-      t.length === 0
-        ? 'separator character not visible in this decode — many scanners strip FNC1 from the reported payload'
-        : /^[\x1d\x1e\x1c\r\n]+$/.test(t)
-          ? 'control character'
-          : 'reported by the decoder as readable text; the symbol itself normally encodes ASCII 29',
+    'GS1 FNC1 group separator, captured as ASCII 29',
+    t => (t === '\x1d' ? 'pass' : null),
+    () => 'ASCII 29 group separator, as captured',
     cite('mandatory', EP_SPEC, 28)
   ),
-  'GS1 element': pf('Unrecognised GS1 element', () => 'manual_review')
+  'GS1 element': pf('Unrecognised GS1 element', () => 'manual_review'),
+  // Raw-data markers, not spec fields: they carry no citation.
+  'Group separator': pf("ASCII 29 group separator. This symbol isn't GS1, so it isn't read as an FNC1", () => null),
+  'Control character': pf('Control character captured in the barcode data', () => null)
 };
 
 const FREIGHT_FIELD_SPECS = {
@@ -309,6 +313,20 @@ const ROUTING_FIELD_SPECS = {
     'GS1 AI 403 — routing code follows',
     literalCheck('403'),
     null,
+    cite('mandatory', ST_SPEC, null, '4.001')
+  ),
+  // The GS1 421 routing form is GS1-128; the standard routing barcode is plain Code 128, so a
+  // captured FNC1 there is shown without a verdict.
+  'FNC1 start': pf(
+    'GS1 421 routing barcode: FNC1 in the first position, reported by scanners as ]C1',
+    (t, ctx) => (t === ']C1' && /^421/.test(ctx?.joined || '') ? 'pass' : null),
+    t => `symbology identifier ${t}: FNC1 in the first position`,
+    cite('mandatory', ST_SPEC, null, '4.001')
+  ),
+  'FNC1 separator': pf(
+    'GS1 FNC1 group separator between AI 421 and AI 403, captured as ASCII 29',
+    t => (t === '\x1d' ? 'pass' : null),
+    () => 'ASCII 29 group separator, as captured',
     cite('mandatory', ST_SPEC, null, '4.001')
   )
 };

@@ -12,6 +12,7 @@
       "id": "EP-LAY-05",
       "title": "Express Post header branding",
       "description": "Express Post labels must carry the Express Post header. The yellow header colour identifies the product at lodgement; a black-and-white label requires Express Post tape on the parcel.",
+      "expectedText": "An Express Post header",
       "obligation": "mandatory",
       "severity": "ERROR",
       "category": "label-layout",

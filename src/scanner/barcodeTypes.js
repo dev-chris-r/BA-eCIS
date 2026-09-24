@@ -36,21 +36,26 @@ export function bestLocatedBarcode(barcodes = []) {
   return best;
 }
 
+// ISO/IEC 15424 symbology identifiers that mean "FNC1 encoded in the first position", i.e. a
+// GS1 symbol: ]C1 GS1-128, ]d2/]d5 GS1 DataMatrix, ]Q3/]Q4 GS1 QR Code, ]e0 GS1 DataBar.
+export const GS1_FIRST_IDENTIFIERS = new Set([']C1', ']d2', ']d5', ']Q3', ']Q4', ']e0']);
+
+/** True only when the scan's symbology identifier proves FNC1 in the first position. */
+export function hasFnc1First(symbologyIdentifier) {
+  return GS1_FIRST_IDENTIFIERS.has(String(symbologyIdentifier || ''));
+}
+
 /**
- * True when a decoded barcode entry is a DataMatrix symbol. Matches the reported format,
- * or GS1 AIs (Application Identifiers, the numeric prefixes that name a field) 420/8008
- * in the payload, so a read whose decoder omitted the format still classifies correctly.
+ * True when a decoded barcode entry is a DataMatrix symbol. The reported format decides;
+ * only a read whose decoder omitted the format falls back to GS1 AIs (Application
+ * Identifiers, the numeric prefixes that name a field) 420/8008 in the payload. Sniffing a
+ * known format would misfile any Code 128 whose digits happen to contain "8008".
  */
 export function isDataMatrixBarcode(barcode) {
   const fmt = String(barcode?.format || barcode?.symbology || '').toLowerCase();
+  if (fmt && fmt !== 'unknown') return fmt.includes('data');
   const raw = String(barcode?.rawValue || '');
-  return (
-    fmt.includes('data') ||
-    raw.includes('(420)') ||
-    raw.includes('(8008)') ||
-    raw.includes('8008') ||
-    raw.includes('|420')
-  );
+  return raw.includes('(420)') || raw.includes('(8008)') || raw.includes('8008') || raw.includes('|420');
 }
 
 /** True when a decoded barcode entry is a QR symbol. */

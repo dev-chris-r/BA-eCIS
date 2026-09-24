@@ -22,11 +22,25 @@ import {
   starTrackRoutingBarcodeList
 } from '../../report/auditInfo.js';
 import { QR_FIELD_SOURCE, fieldMetaText } from '../../report/barcodeFieldSpecs.js';
-import { rawSegments } from '../../report/segments.js';
+import { leadingFnc1Info, rawContentOf, rawDisplaySegments } from '../../report/readerData.js';
+import { barcodeSegments, rawSegments } from '../../report/segments.js';
 import { STARTRACK_QR_FIELDS } from './formats/qr.js';
 import { STARTRACK_PRODUCT_CODE_MAP } from './referenceData.js';
 
 const QR_OBLIGATION_LABEL = { M: 'Mandatory', COND: 'Conditional', O: 'Optional' };
+
+/** A captured barcode value as plain text, exactly as scanned, with control characters shown
+ *  as markers (ASCII 29 as FNC1 only in a GS1 symbol). */
+function rawText(barcode) {
+  const { raw } = rawContentOf(barcode);
+  const gs1 = leadingFnc1Info(barcode?.symbologyIdentifier).status === 'first';
+  return rawDisplaySegments(raw, { gs1 })
+    .map(s => (s.ctrl ? s.display : s.text))
+    .join('');
+}
+
+/** An SSCC parse as a barcode-like object, so it displays from its captured bytes. */
+const ssccBarcode = s => ({ rawBytes: s.rawBytes, rawValue: s.raw, symbologyIdentifier: s.symbologyIdentifier });
 
 /** One expandable QR field line: the StarTrack QR spec fields carry their own rule ids,
  *  obligations and fixed char positions. */
@@ -123,7 +137,8 @@ export function StarTrackQrSection({ audit, items }) {
                         <QrFieldLine
                           key={f.key}
                           field={f}
-                          value={qr.fields?.[f.key] ?? ''}
+                          // The exact fixed-width slice, padding included (the parsed field is trimmed).
+                          value={String(qr.raw || '').slice(f.pos - 1, f.pos - 1 + f.len)}
                           status={qrFieldStatus(items, f.rule)}
                           swatchClass={segIndex >= 0 ? `seg-c${segIndex % SEG_PALETTE}` : null}
                         />
@@ -346,7 +361,7 @@ export function StarTrackFreightItemSection({ audit, items }) {
                   <React.Fragment key={s.sscc}>
                     <div>
                       <span>SSCC</span>
-                      <strong>00{s.sscc}</strong>
+                      <strong>{rawText(ssccBarcode(s))}</strong>
                     </div>
                     <div>
                       <span>Extension digit</span>
@@ -366,8 +381,9 @@ export function StarTrackFreightItemSection({ audit, items }) {
               {ssccs.map(s => (
                 <SegmentedCode
                   key={`seg-${s.sscc}`}
-                  segments={rawSegments(`${s.symbologyIdentifier || ''}00${s.sscc}`, 'sscc')}
+                  segments={barcodeSegments(ssccBarcode(s), 'sscc')}
                   title="SSCC field map (colour-coded)"
+                  readableValue={s.raw}
                 />
               ))}
             </details>
@@ -394,7 +410,8 @@ export function StarTrackProductArticleSection({ audit, items }) {
       )
     )
   ];
-  const routes = st.routingParses || [];
+  // The routing barcodes exactly as scanned (the GS1 421 form keeps its captured FNC1).
+  const routingValues = [...new Set(starTrackRoutingBarcodeList(audit).map(rawText))];
   const ssccOnly = Boolean(st.ssccOnly);
   return (
     <section className="card audit-section startrack-section" id="service-article-section">
@@ -414,11 +431,11 @@ export function StarTrackProductArticleSection({ audit, items }) {
       <div className="fact-cards fact-cards-wide">
         <div>
           <span>Freight item barcode(s)</span>
-          <strong>{(st.freightParses || []).map(f => f.freightItemId).join(', ') || 'Not decoded'}</strong>
+          <strong>{(st.freightParses || []).map(f => f.raw).join(', ') || 'Not decoded'}</strong>
         </div>
         <div>
           <span>SSCC value(s)</span>
-          <strong>{(st.ssccParses || []).map(s => `00${s.sscc}`).join(', ') || 'Not decoded'}</strong>
+          <strong>{(st.ssccParses || []).map(s => rawText(ssccBarcode(s))).join(', ') || 'Not decoded'}</strong>
         </div>
         <div>
           <span>Product code(s)</span>
@@ -432,11 +449,7 @@ export function StarTrackProductArticleSection({ audit, items }) {
         </div>
         <div>
           <span>Routing code(s)</span>
-          <strong>
-            {routes.length
-              ? routes.map(r => `${r.labelCode}${r.postcode}${r.depotOrPort || ''}`).join(', ')
-              : 'Not decoded'}
-          </strong>
+          <strong>{routingValues.length ? routingValues.join(', ') : 'Not decoded'}</strong>
         </div>
       </div>
       <StandardLine>

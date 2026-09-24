@@ -8,7 +8,8 @@ import { isStarTrackAtlValue, isStarTrackFreightItemValue, isStarTrackRoutingVal
 import { ARTICLE_FIELD_SPECS, fieldMetaText, fieldSpecsFor } from './barcodeFieldSpecs.js';
 import { standardForValidation } from './standards.js';
 import { barcodeDisplayName } from './auditInfo.js';
-import { rawSegments, rawValueWithIdentifier } from './segments.js';
+import { leadingFnc1Info, rawContentOf, rawDisplaySegments } from './readerData.js';
+import { barcodeSegments } from './segments.js';
 
 export function formatBytes(bytes) {
   if (!Number.isFinite(bytes)) return 'unknown size';
@@ -47,7 +48,7 @@ export function imageBoxCaption(images = {}, kind = FORMAT_KIND.datamatrix) {
   const box = kind === FORMAT_KIND.datamatrix ? images.dataMatrixBox : images.linearBarcodeBox;
   const label =
     kind === FORMAT_KIND.datamatrix
-      ? 'Detected GS1 DataMatrix location for this label'
+      ? 'Detected DataMatrix location for this label'
       : 'Detected linear barcode location for this label';
   if (!box) return `${label} · fallback crop only`;
   return `${label} · box ${Math.round(box.x)},${Math.round(box.y)} ${Math.round(box.width)}×${Math.round(box.height)}px`;
@@ -166,8 +167,8 @@ export function AdditionalBarcodesSection({ audit }) {
               <strong>{barcodeDisplayName(b)}</strong> page {b.pageNumber || ''}
             </div>
             <div className="segmented-code-row">
-              <code className="raw-code raw-code-block">{b.rawValue}</code>
-              <CopyButton value={b.rawValue} />
+              <RawCode barcode={b} />
+              <RawCopyButtons barcode={b} />
             </div>
             <div className="muted small">
               {b.pageBoundingBox
@@ -491,7 +492,8 @@ export function StatusKeyLegend() {
  *  name + spec + raw value + status icon; char positions and reference detail live in the
  *  drawer so the line itself stays readable. */
 export function FieldLine({ name, spec, value, status, detail, swatchClass }) {
-  const text = String(value ?? '').trim();
+  // Shown untrimmed, so fixed-width padding stays part of the raw value; all-space is "blank".
+  const text = String(value ?? '');
   return (
     <details className="qr-line">
       <summary>
@@ -503,7 +505,7 @@ export function FieldLine({ name, spec, value, status, detail, swatchClass }) {
           {name}
         </span>
         <span className="qr-spec">{spec}</span>
-        <span className="qr-val">{text ? <code>{text}</code> : <span className="muted small">blank</span>}</span>
+        <span className="qr-val">{text.trim() ? <code>{text}</code> : <span className="muted small">blank</span>}</span>
         {status ? <StatusIcon status={status} /> : <span className="qr-noico muted small">—</span>}
       </summary>
       <div className="qr-drawer">
@@ -574,14 +576,66 @@ export function CopyButton({ value, label = 'Copy barcode value', text }) {
   );
 }
 
+/** A barcode's captured raw content, byte-true: control characters render as visible markers
+ *  (ASCII 29 as FNC1 only in a GS1 symbol), and a leading FNC1 marker appears only when the
+ *  symbology identifier proves FNC1 in the first position. */
+export function RawCode({ barcode, className = '' }) {
+  const { raw } = rawContentOf(barcode);
+  const fnc1 = leadingFnc1Info(barcode?.symbologyIdentifier);
+  const segments = rawDisplaySegments(raw, { gs1: fnc1.status === 'first' });
+  return (
+    <code className={`raw-code raw-code-block ${className}`.trim()}>
+      {fnc1.status === 'first' ? (
+        <span
+          className="ctrl-char ctrl-char-lead"
+          title={`FNC1 in first position - signalled by symbology identifier ${fnc1.code}, not transmitted as data`}
+        >
+          ⟨FNC1⟩ {fnc1.code}
+        </span>
+      ) : null}
+      {segments.map((seg, i) =>
+        seg.ctrl ? (
+          <span key={i} className="ctrl-char" title={seg.title}>
+            {seg.display}
+          </span>
+        ) : (
+          <span key={i}>{seg.text}</span>
+        )
+      )}
+    </code>
+  );
+}
+
+/** Copy actions for one barcode: its raw captured value (control characters included), plus
+ *  the decoder's readable text when that differs. */
+export function RawCopyButtons({ barcode }) {
+  const { raw } = rawContentOf(barcode);
+  const readable = String(barcode?.rawValue || '');
+  return (
+    <>
+      <CopyButton value={raw} label="Copy raw value (control characters included)" text="Copy raw" />
+      {readable && readable !== raw ? (
+        <CopyButton value={readable} label="Copy readable value" text="Copy readable" />
+      ) : null}
+    </>
+  );
+}
+
 /** Renders a decoded barcode value with each data element highlighted in a distinct colour,
  *  plus a legend mapping colour -> field, so reviewers can see which character ranges map to
  *  which validated field. `segments` is an ordered [{ text, label }]; concatenated text equals
- *  the decoded value (padding preserved for fixed-width payloads). */
-export function SegmentedCode({ segments, title = 'Barcode field map (colour-coded)', showLegend = true }) {
+ *  the captured raw value exactly (markers have empty text). `readableValue`, when it differs,
+ *  adds a second copy action for the decoder's readable text. */
+export function SegmentedCode({
+  segments,
+  title = 'Barcode field map (colour-coded)',
+  showLegend = true,
+  readableValue = ''
+}) {
   const segs = (segments || []).filter(s => s && ((s.text != null && String(s.text).length > 0) || s.display));
   if (!segs.length) return null;
   const fullValue = segs.map(s => String(s.text)).join('');
+  const showReadable = Boolean(readableValue) && readableValue !== fullValue;
   return (
     <div className={title ? 'decoded-panel segmented-panel' : 'segmented-inline'}>
       {title ? <h3>{title}</h3> : null}
@@ -593,7 +647,12 @@ export function SegmentedCode({ segments, title = 'Barcode field map (colour-cod
             </span>
           ))}
         </code>
-        <CopyButton value={fullValue} />
+        <CopyButton
+          value={fullValue}
+          label="Copy raw value (control characters included)"
+          text={showReadable ? 'Copy raw' : undefined}
+        />
+        {showReadable ? <CopyButton value={readableValue} label="Copy readable value" text="Copy readable" /> : null}
       </div>
       {showLegend ? (
         <ul className="segmented-legend">
@@ -601,7 +660,7 @@ export function SegmentedCode({ segments, title = 'Barcode field map (colour-cod
             <li key={i}>
               <span className={`seg-swatch seg-c${i % SEG_PALETTE}`} aria-hidden="true" />
               <span className="segmented-legend-label">{s.label}</span>
-              <code className="segmented-legend-val">{String(s.text).trim() || '(blank)'}</code>
+              <code className="segmented-legend-val">{s.display ?? (String(s.text).trim() || '(blank)')}</code>
             </li>
           ))}
         </ul>
@@ -643,10 +702,12 @@ export function SegmentedFields({ segments, kind }) {
         const text = String(s.text);
         const start = starts[i];
         const def = specs[s.label];
+        // Markers (FNC1 start, symbology identifier) are judged on the identifier, not data.
+        const checked = s.ident ?? text;
         const detail = [
-          `position ${start}, length ${text.length}`,
+          s.ident ? 'symbology identifier, not part of the data' : `position ${start}, length ${text.length}`,
           fieldMetaText(def),
-          def?.detail ? def.detail(text, ctx) : ''
+          def?.detail ? def.detail(checked, ctx) : ''
         ]
           .filter(Boolean)
           .join(' · ');
@@ -656,8 +717,8 @@ export function SegmentedFields({ segments, kind }) {
             swatchClass={s.display ? 'seg-sep' : `seg-c${i % SEG_PALETTE}`}
             name={s.label}
             spec={def?.spec || '—'}
-            value={text.length ? (s.display ?? text) : ''}
-            status={def?.check ? def.check(text, ctx) : null}
+            value={s.ident ? s.display : text.length ? (s.display ?? text) : ''}
+            status={def?.check ? def.check(checked, ctx) : null}
             detail={detail}
           />
         );
@@ -675,16 +736,19 @@ export function DecodedBarcodes({ barcodes, kind, label, emptyText, showLegend }
   return (
     <ul className="barcode-list decoded-list">
       {barcodes.map(b => {
-        const segments = rawSegments(rawValueWithIdentifier(b, kind), kind).filter(
-          s => s && (String(s.text).length > 0 || s.display)
-        );
+        const segments = barcodeSegments(b, kind).filter(s => s && (String(s.text).length > 0 || s.display));
         const hasFieldRows = segments.some(s => fieldSpecsFor(kind, segments)[s.label]);
         return (
           <li key={`${b.pageNumber || 0}-${b.rawValue}`}>
             <div className="barcode-meta">
               <strong>{label}</strong> {b.pageNumber ? `page ${b.pageNumber}` : ''}
             </div>
-            <SegmentedCode segments={segments} title={null} showLegend={showLegend ?? !hasFieldRows} />
+            <SegmentedCode
+              segments={segments}
+              title={null}
+              showLegend={showLegend ?? !hasFieldRows}
+              readableValue={b.rawValue}
+            />
             {hasFieldRows ? <SegmentedFields segments={segments} kind={kind} /> : null}
             <div className="muted small">
               {b.pageBoundingBox
