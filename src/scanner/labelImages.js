@@ -56,9 +56,12 @@ export const STARTRACK_LINEAR_TARGETS = {
 
 /** Uppercases and strips spacing so decoded values compare by role reliably. */
 export function normalizeBarcodeValueForRole(value) {
+  // Matches the audit parsers: a leading symbology identifier (]C1) and FNC1/GS control
+  // characters are decoder framing, not content, so a GS1 routing read that carries its
+  // separator still classifies as a routing barcode.
   return String(value || '')
-    .replace(/[()\s]/g, '')
-    .trim()
+    .replace(/^\][A-Za-z0-9]{2}/, '')
+    .replace(/[()\s\x00-\x1f\x7f]/g, '')
     .toUpperCase();
 }
 
