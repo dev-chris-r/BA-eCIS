@@ -510,6 +510,67 @@
       }
     },
     {
+      "id": "ST-RTE-10",
+      "title": "GS1 routing only on SSCC labels",
+      "description": "The GS1 421 routing barcode is for Australian SSCC labels only. Standard labels use the StarTrack routing barcode.",
+      "expectedText": "The StarTrack routing barcode (SSS9999DDD)",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-routing",
+      "source": { "doc": "MOS v9", "page": 14 },
+      "when": { "path": "selected.format", "op": "equals", "value": "standard" },
+      "forEach": "barcodes.routing",
+      "input": "item.type",
+      "evidence": ["item.raw"],
+      "assert": { "op": "equals", "value": "startrack-routing" },
+      "messages": {
+        "pass": "The label uses the StarTrack routing barcode.",
+        "fail": "This standard label has a GS1 421 routing barcode, which is only for SSCC labels. Use the StarTrack routing barcode (SSS9999DDD) instead."
+      }
+    },
+    {
+      "id": "ST-RTE-11",
+      "title": "GS1 routing barcode starts with FNC1",
+      "description": "The GS1 421 routing barcode is GS1-128, so it starts with FNC1. Scanners report this as the code ]C1.",
+      "expectedText": "]C1: FNC1 in the first position",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-routing",
+      "source": { "doc": "MOS v9", "page": 15 },
+      "forEach": "barcodes.routing",
+      "itemWhen": { "path": "item.type", "op": "equals", "value": "gs1-421-routing" },
+      "input": "item.fnc1FirstPosition",
+      "evidence": ["item.symbologyIdentifier", "item.raw"],
+      "assert": { "op": "equals", "value": true },
+      "onMissing": "manual_review",
+      "messages": {
+        "pass": "The scanner reported ]C1: the GS1 routing barcode starts with FNC1.",
+        "fail": "The GS1 routing barcode doesn't start with FNC1, so it reads as plain Code 128, not GS1-128. See the identifier in the evidence.",
+        "missing": "The scanner didn't report a symbology identifier, so FNC1 at the start couldn't be checked. Check the barcode was generated as GS1-128."
+      }
+    },
+    {
+      "id": "ST-RTE-12",
+      "title": "FNC1 before AI 403",
+      "description": "AI 421 has a variable length, so an FNC1 must separate the postcode from AI 403 in the GS1 routing barcode.",
+      "expectedText": "An FNC1 between the postcode and AI 403",
+      "obligation": "mandatory",
+      "severity": "ERROR",
+      "category": "startrack-routing",
+      "source": { "doc": "MOS v9", "page": 15 },
+      "forEach": "barcodes.routing",
+      "itemWhen": { "path": "item.type", "op": "equals", "value": "gs1-421-routing" },
+      "input": "item.fnc1Before403",
+      "evidence": ["item.raw"],
+      "assert": { "op": "equals", "value": true },
+      "onMissing": "manual_review",
+      "messages": {
+        "pass": "An FNC1 separates the postcode from AI 403.",
+        "fail": "There's no FNC1 between the postcode and AI 403. AI 421 has a variable length, so a scanner can't tell where the postcode ends.",
+        "missing": "The scanner didn't report the barcode's raw bytes, so the FNC1 before AI 403 couldn't be checked."
+      }
+    },
+    {
       "id": "ST-RTE-05",
       "title": "Depot/port requires manual validation",
       "description": "Depots come from StarTrack's Location Master File. Without it loaded, each routing barcode is held for review.",

@@ -427,7 +427,24 @@ export function auditStarTrackLabel({
     .filter(p => p.type === 'sscc' && p.valid !== undefined && p.raw);
   const validSsccs = ssccParses.filter(p => p.valid);
   const invalidSsccs = ssccParses.filter(p => !p.valid);
-  const routingParses = linearValues.map(parseStarTrackRoutingBarcode).filter(p => p.valid);
+  // The GS1 421 routing form is GS1-128, so each parse keeps the decoder's evidence: the
+  // symbology identifier (FNC1 first, ST-RTE-11) and whether the captured bytes hold the FNC1
+  // that must end the variable-length AI 421 before AI 403 (ST-RTE-12). Unknown stays null.
+  const routingParses = linearBarcodes
+    .filter(b => b.rawValue)
+    .map(b => {
+      const parsed = parseStarTrackRoutingBarcode(b.rawValue);
+      if (parsed.type !== 'gs1-421-routing') return parsed;
+      const { symbologyIdentifier, fnc1FirstPosition } = gs1LinearComplianceEvidence({
+        raw: b.rawValue,
+        symbologyIdentifier: b.symbologyIdentifier,
+        decoderSource: b.source
+      });
+      const bytes = String(b.rawBytes || '');
+      const fnc1Before403 = bytes ? /^421\d{7}\x1d403/.test(bytes) : null;
+      return { ...parsed, symbologyIdentifier, fnc1FirstPosition, fnc1Before403 };
+    })
+    .filter(p => p.valid);
   const atlParses = linearValues.map(parseStarTrackAtlBarcode).filter(p => p.valid);
   // Linear symbols that decoded but match no StarTrack structure are surfaced for
   // review instead of silently disappearing as "not decoded" - the symbol DID read,
